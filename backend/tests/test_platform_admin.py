@@ -338,3 +338,67 @@ async def test_reissued_activation_link_reactivates_a_locked_out_admin(
     assert response.status_code == 200
     assert response.json()["user"]["status"] == UserStatus.PENDING_ACTIVATION.value
     assert "/activate?token=" in response.json()["activation_url"]
+
+
+@pytest.mark.asyncio
+async def test_an_invited_dispatcher_can_activate_and_sign_in(
+    client: AsyncClient, db: AsyncSession
+) -> None:
+    """The whole round trip the Settings screen exposes.
+
+    There was already a test that an invite is created and one that a pending
+    user cannot log in; nothing covered the step in between, which is the one
+    an admin actually performs by hand because there is no email provider.
+    """
+    org = await make_organization(db, "Acme Logistics")
+    await make_user(
+        db, email="admin@acme.example.com", role=UserRole.ORG_ADMIN, organization=org
+    )
+    await db.commit()
+    admin_token = await login(client, "admin@acme.example.com")
+
+    invited = await client.post(
+        "/api/v1/organization/users",
+        headers=auth(admin_token),
+        json={
+            "email": "newdispatch@acme.example.com",
+            "full_name": "New Dispatch",
+            "role": "dispatcher",
+        },
+    )
+    assert invited.status_code == 201
+    token = invited.json()["activation_url"].split("token=")[1]
+
+    activated = await client.post(
+        "/api/v1/auth/activate",
+        json={"token": token, "password": "BrandNewPassw0rd!2026"},
+    )
+    assert activated.status_code == 200
+
+    signed_in = await client.post(
+        "/api/v1/auth/login",
+        json={
+            "email": "newdispatch@acme.example.com",
+            "password": "BrandNewPassw0rd!2026",
+        },
+    )
+    assert signed_in.status_code == 200
+    assert signed_in.json()["user"]["role"] == "dispatcher"
+    assert signed_in.json()["user"]["status"] == "active"
+
+    # The link is single-use, so a leaked one cannot be replayed.
+    replay = await client.post(
+        "/api/v1/auth/activate",
+        json={"token": token, "password": "AnotherPassw0rd!2026"},
+    )
+    assert replay.status_code in (400, 404, 422)
+
+    # And they still cannot change settings - the screen is read-only for them
+    # because the API says so, not because the UI hides a button.
+    dispatcher_token = signed_in.json()["tokens"]["access_token"]
+    refused = await client.patch(
+        "/api/v1/organization/settings",
+        headers=auth(dispatcher_token),
+        json={"driver_points_baseline": 9999},
+    )
+    assert refused.status_code == 403

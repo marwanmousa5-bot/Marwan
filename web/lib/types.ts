@@ -751,3 +751,25 @@ export interface SecurityOverview {
   locked_accounts: number;
   users_without_a_known_device: number;
 }
+
+// --- Organisation settings and team management ------------------------------
+
+export interface OrganizationSettings {
+  id: string;
+  organization_id: string;
+  distance_unit: "km" | "mi";
+  currency: string;
+  show_leaderboard_to_drivers: boolean;
+  driver_points_baseline: number;
+  /** Org-Admin tunable penalty/reward weights - never hardcoded (Section 9). */
+  point_weights: Record<string, number>;
+  maintenance_auto_book_enabled: boolean;
+  alert_thresholds: Record<string, number>;
+  co2_emission_factors: Record<string, number>;
+}
+
+export interface InviteUserResponse {
+  user: User;
+  /** Shown for manual delivery - there is no email provider in the MVP. */
+  activation_url: string;
+}

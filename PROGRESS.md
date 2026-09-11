@@ -395,16 +395,45 @@ back.
 
 ---
 
+## Settings and team management ✅
+
+Added after the phases, to close a gap the UI itself was pointing at: two
+screens told the user to change something "in Settings" and there was no
+Settings screen. The API had always exposed these; nothing could reach them.
+
+`/dashboard/settings` now carries the organisation profile, units and
+currency, **the driver point weights and monthly baseline** (the Section 9
+constraint against hardcoded weights is only real if an admin can actually
+reach them), the alert thresholds, the CO2 emission factors, the leaderboard
+visibility switch, the maintenance auto-booking switch, and team management -
+invite a dispatcher or driver, surface the one-time activation link for manual
+delivery, suspend and reactivate.
+
+Two notes on it:
+
+- **Maintenance auto-booking is the one place FleetBeat acts without asking
+  each time**, so the screen says exactly that. Turning it on is a standing
+  instruction to book; leaving it off (the default) means the Copilot proposes
+  and a person applies. The card states which mode is in force.
+- **A dispatcher sees the screen read-only.** That is cosmetic - the real gate
+  is the API, which answers a dispatcher's PATCH with 403. Verified both ways.
+
+Unlabelled keys are still rendered: a weight or threshold added server-side
+appears on this screen with a humanised name rather than silently vanishing
+from it.
+
+---
+
 ## Testing
 
-**177 backend tests, all passing**, with no external services (in-memory
+**178 backend tests, all passing**, with no external services (in-memory
 SQLite, a fake OSRM client, and the offline Claude path).
 
 | Suite | Tests | Covers |
 |---|---|---|
 | `test_tenant_isolation.py` | 13 | the mandatory Section 7 proof |
 | `test_auth.py` | 12 | login, lockout, refresh rotation, RBAC, no registration |
-| `test_platform_admin.py` | 12 | provisioning, activation, suspension, impersonation |
+| `test_platform_admin.py` | 13 | provisioning, activation, suspension, impersonation |
 | `test_fleet_crud.py` | 10 | vehicle/driver lifecycles, audit diffs |
 | `test_devices.py` | 10 | device inventory, and that no customer role can touch it |
 | `test_simulation.py` | 12 | the feed, trips, persisted history |
@@ -415,7 +444,7 @@ SQLite, a fake OSRM client, and the offline Claude path).
 | `test_phase6.py` | 22 | rerouting, audit views, sign-in activity |
 
 `ruff check .` is clean; the web app typechecks, lints and builds clean across
-22 routes.
+23 routes.
 
 **Browser verification.** Phases 2, 3, 4, 5 and 6 were each exercised in
 Chromium against a live API with the simulator running — not just unit-tested.

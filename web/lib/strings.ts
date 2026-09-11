@@ -307,6 +307,75 @@ export const strings = {
     lockoutNote:
       "An account locks itself after five consecutive failures and unlocks when the lockout expires.",
   },
+  settings: {
+    title: "Settings",
+    subtitle: "How FleetBeat behaves for your organisation, and who can use it.",
+    adminOnly: "Only an organisation admin can change these settings.",
+    saved: "Saved.",
+    saveFailed: "We could not save that.",
+    save: "Save changes",
+    saving: "Saving…",
+    reset: "Reset to defaults",
+
+    profileTitle: "Organisation",
+    profileHint: "Shown across the console and on exported reports.",
+    name: "Name",
+    industry: "Industry",
+    timezone: "Time zone",
+    contactName: "Main contact",
+    contactEmail: "Contact email",
+    contactPhone: "Contact phone",
+
+    unitsTitle: "Units and currency",
+    distanceUnit: "Distance",
+    currency: "Currency",
+    km: "Kilometres",
+    mi: "Miles",
+
+    pointsTitle: "Driver points",
+    pointsHint:
+      "What each event is worth. These are your numbers, not ours - the defaults below are only a starting point, and scoring reads whatever you set here.",
+    baseline: "Monthly starting balance",
+    penalties: "Penalties",
+    rewards: "Rewards",
+    leaderboardVisible: "Let drivers see the leaderboard",
+    leaderboardHint:
+      "Off by default. When off, a driver sees only their own score and points in the mobile app.",
+
+    thresholdsTitle: "Alert thresholds",
+    thresholdsHint:
+      "When the alerts engine raises each kind of alert, for this organisation only.",
+
+    emissionsTitle: "CO₂ emission factors",
+    emissionsHint:
+      "Kilograms of CO₂ per litre burned, by fuel type. Sustainability reporting uses these figures.",
+
+    autoBookTitle: "Maintenance auto-booking",
+    autoBookLabel: "Let the Maintenance Copilot book work orders by itself",
+    autoBookHint:
+      "Off by default. Leave it off and the Copilot only proposes a service window, which you apply yourself. Turning it on is a standing instruction to book - an auto-created work order commits real money, so it is the one place FleetBeat acts without asking each time.",
+    autoBookOn: "On - the Copilot books the window it picks",
+    autoBookOff: "Off - the Copilot proposes, you decide",
+
+    teamTitle: "Team",
+    teamHint:
+      "Dispatchers use this console; drivers use the mobile app and cannot sign in here.",
+    inviteTitle: "Invite someone",
+    inviteEmail: "Work email",
+    inviteName: "Full name",
+    inviteRole: "Role",
+    invite: "Send invite",
+    inviting: "Inviting…",
+    inviteDone:
+      "Invited. There is no email provider yet, so send them this one-time link yourself:",
+    copy: "Copy link",
+    copied: "Copied",
+    suspend: "Suspend",
+    reactivate: "Reactivate",
+    teamEmpty: "No one else has been invited yet.",
+    noDeviceRole:
+      "GPS devices are fitted and removed by FleetBeat staff, not from here.",
+  },
   common: {
     loading: "Loading…",
     retry: "Try again",
