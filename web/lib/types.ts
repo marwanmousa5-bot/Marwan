@@ -405,3 +405,70 @@ export interface PlatformDevice {
   vehicle_name: string | null;
   vehicle_plate: string | null;
 }
+
+// ---------------------------------------------------------------------------
+// Phase 3: dispatch tasks, inspections and incidents
+// ---------------------------------------------------------------------------
+
+export type TaskStatus =
+  | "assigned"
+  | "accepted"
+  | "en_route"
+  | "completed"
+  | "cancelled";
+export type TaskPriority = "normal" | "urgent";
+export type TaskType = "delivery" | "pickup" | "service_call" | "custom";
+
+export interface Task {
+  id: string;
+  organization_id: string;
+  title: string;
+  description: string | null;
+  task_type: TaskType;
+  priority: TaskPriority;
+  status: TaskStatus;
+  driver_id: string | null;
+  vehicle_id: string | null;
+  destination_label: string | null;
+  destination_latitude: number;
+  destination_longitude: number;
+  waypoints: { lat: number; lng: number; label?: string | null }[] | null;
+  due_at: string | null;
+  eta: string | null;
+  accepted_at: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  cancelled_at: string | null;
+  cancellation_reason: string | null;
+  completion_note: string | null;
+  completion_photo_url: string | null;
+  route_id: string | null;
+  trip_id: string | null;
+  created_at: string;
+  driver_name: string | null;
+  vehicle_name: string | null;
+}
+
+export interface RoutePreview {
+  distance_km: number;
+  duration_minutes: number;
+  eta: string;
+  geometry_polyline: string | null;
+}
+
+export interface Incident {
+  id: string;
+  title: string;
+  description: string | null;
+  severity: "minor" | "moderate" | "severe";
+  status: "reported" | "under_review" | "closed";
+  vehicle_id: string | null;
+  driver_id: string | null;
+  task_id: string | null;
+  occurred_at: string;
+  latitude: number | null;
+  longitude: number | null;
+  location_label: string | null;
+  created_at: string;
+  photo_urls: string[];
+}

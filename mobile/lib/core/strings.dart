@@ -25,13 +25,51 @@ class Strings {
 
   // Home
   static const myTasks = 'My Tasks';
-  static const noTasksYet = 'No tasks assigned yet.';
-  static const tasksComingSoon =
-      'Your task list, pre-trip checklist and trip tracking arrive in Phase 3.';
+  static const noTasksYet = 'No tasks assigned for now.';
+  static const noTasksHint = 'New jobs appear here as your dispatcher assigns them.';
+  static const todaysVehicle = "Today's vehicle";
+  static const noVehicle = 'No vehicle assigned';
+  static const safetyScore = 'Safety score';
+  static const points = 'Points';
+
+  // Inspection
   static const preTripInspection = 'Pre-trip inspection';
+  static const inspectionDue = 'Pre-trip inspection due';
+  static const inspectionDueHint = 'Check the vehicle before your first job today.';
+  static const inspectionDone = 'Inspection complete for today';
+  static const submitInspection = 'Submit inspection';
+  static const odometerReading = 'Odometer (km)';
+  static const inspectionNotes = 'Notes (optional)';
+  static const inspectionFailWarning =
+      'Reporting a fault raises an incident for your fleet team straight away.';
+
+  // Task detail
+  static const taskDetails = 'Task';
+  static const accept = 'Accept';
+  static const start = 'Start driving';
+  static const complete = 'Complete';
   static const reportIssue = 'Report an issue';
+  static const destination = 'Destination';
+  static const instructions = 'Instructions';
+  static const due = 'Due';
+  static const eta = 'ETA';
+  static const priorityUrgent = 'Urgent';
+  static const routeUnavailable =
+      'Route unavailable right now. You can still start the job.';
+  static const completionNote = 'Completion note (optional)';
+  static const attachPhoto = 'Attach proof photo';
+  static const photoAttached = 'Photo attached';
+
+  // Incident
+  static const incidentTitle = 'What happened?';
+  static const incidentDescription = 'Description';
+  static const severity = 'Severity';
+  static const submitReport = 'Send report';
+  static const reportSent = 'Report sent to your fleet team.';
 
   // Generic
   static const loading = 'Loading…';
   static const retry = 'Try again';
+  static const cancel = 'Cancel';
+  static const somethingWentWrong = 'Something went wrong. Please try again.';
 }

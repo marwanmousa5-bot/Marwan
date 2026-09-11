@@ -25,6 +25,7 @@ import type {
   LiveVehicle,
   Page,
   Poi,
+  Task,
   WeatherZone,
 } from "@/lib/types";
 import type { DrawMode, DrawnGeometry, LayerVisibility } from "@/components/map/FleetMap";
@@ -66,6 +67,7 @@ export default function LiveTrackingPage() {
   const [geofences, setGeofences] = useState<Geofence[]>([]);
   const [pois, setPois] = useState<Poi[]>([]);
   const [weatherZones, setWeatherZones] = useState<WeatherZone[]>([]);
+  const [taskDestinations, setTaskDestinations] = useState<Task[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
 
   const [loading, setLoading] = useState(true);
@@ -82,6 +84,7 @@ export default function LiveTrackingPage() {
     geofences: true,
     pois: true,
     weather: false,
+    tasks: true,
   });
 
   const loadedOnce = useRef(false);
@@ -97,13 +100,24 @@ export default function LiveTrackingPage() {
     setAlerts(page.items);
   }, []);
 
+  const loadTaskDestinations = useCallback(async () => {
+    // Only work still in flight belongs on the live map.
+    const open = await Promise.all(
+      (["assigned", "accepted", "en_route"] as const).map((status) =>
+        api.get<Page<Task>>(`/tasks?status=${status}&limit=100`),
+      ),
+    );
+    setTaskDestinations(open.flatMap((page) => page.items));
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [, , fences, points, zones] = await Promise.all([
+        const [, , , fences, points, zones] = await Promise.all([
           loadSnapshot(),
           loadAlerts(),
+          loadTaskDestinations(),
           api.get<Geofence[]>("/geofences"),
           api.get<Poi[]>("/pois"),
           api.get<WeatherZone[]>("/weather-zones"),
@@ -125,7 +139,7 @@ export default function LiveTrackingPage() {
     return () => {
       cancelled = true;
     };
-  }, [loadSnapshot, loadAlerts]);
+  }, [loadSnapshot, loadAlerts, loadTaskDestinations]);
 
   const handleAlert = useCallback((alert: Alert) => {
     setAlerts((current) => [alert, ...current].slice(0, 50));
@@ -327,6 +341,7 @@ export default function LiveTrackingPage() {
             geofences={geofences}
             pois={pois}
             weatherZones={weatherZones}
+            taskDestinations={taskDestinations}
             layers={layers}
             selectedVehicleId={selectedId}
             onSelectVehicle={setSelectedId}

@@ -124,6 +124,19 @@ class ApiClient {
     return jsonDecode(response.body);
   }
 
+  Future<dynamic> post(String path, Object? body, {bool retried = false}) async {
+    final response = await _http.post(
+      Uri.parse('$baseUrl$path'),
+      headers: _headers(),
+      body: jsonEncode(body ?? const <String, dynamic>{}),
+    );
+    if (response.statusCode == 401 && !retried && await _refresh()) {
+      return post(path, body, retried: true);
+    }
+    if (response.statusCode >= 400) throw _toException(response);
+    return response.body.isEmpty ? null : jsonDecode(response.body);
+  }
+
   Future<void> logout() async {
     if (_refreshToken != null) {
       try {

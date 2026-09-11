@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'core/api_client.dart';
+import 'core/push.dart';
 import 'core/strings.dart';
 import 'core/theme.dart';
 import 'features/auth/login_screen.dart';
@@ -31,6 +32,7 @@ class _FleetBeatDriverAppState extends State<FleetBeatDriverApp> {
   }
 
   Future<void> _restore() async {
+    await PushNotifications.instance.register();
     await _api.restoreSession();
     if (_api.hasSession) {
       try {

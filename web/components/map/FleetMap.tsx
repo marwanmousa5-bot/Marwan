@@ -23,9 +23,9 @@ import maplibregl, {
   type MapGeoJSONFeature,
 } from "maplibre-gl";
 
-import type { Geofence, LiveVehicle, Poi, WeatherZone } from "@/lib/types";
+import type { Geofence, LiveVehicle, Poi, Task, WeatherZone } from "@/lib/types";
 import { CLUSTER_NEUTRAL, STATUS_COLORS, basemapStyle } from "./mapStyle";
-import { POI_COLORS, poiPin, vehicleArrow } from "./icons";
+import { POI_COLORS, destinationMarker, poiPin, vehicleArrow } from "./icons";
 
 import "maplibre-gl/dist/maplibre-gl.css";
 
@@ -43,6 +43,7 @@ export interface LayerVisibility {
   geofences: boolean;
   pois: boolean;
   weather: boolean;
+  tasks: boolean;
 }
 
 interface FleetMapProps {
@@ -50,6 +51,8 @@ interface FleetMapProps {
   geofences: Geofence[];
   pois: Poi[];
   weatherZones: WeatherZone[];
+  /** Active task destinations, drawn distinctly from vehicles and POIs. */
+  taskDestinations?: Task[];
   layers: LayerVisibility;
   selectedVehicleId: string | null;
   onSelectVehicle: (vehicleId: string | null) => void;
@@ -121,6 +124,7 @@ export function FleetMap({
   geofences,
   pois,
   weatherZones,
+  taskDestinations = [],
   layers,
   selectedVehicleId,
   onSelectVehicle,
@@ -194,6 +198,14 @@ export function FleetMap({
       for (const [category, color] of Object.entries(POI_COLORS)) {
         map.addImage(`poi-${category}`, poiPin(color), { pixelRatio: 2 });
       }
+      // A task destination is a third marker shape: a dispatcher must be able
+      // to tell a job apart from a vehicle and from a saved place at a glance.
+      map.addImage("task-destination", destinationMarker("#9B7BFF"), {
+        pixelRatio: 2,
+      });
+      map.addImage("task-destination-urgent", destinationMarker("#FF6B35"), {
+        pixelRatio: 2,
+      });
 
       const empty = { type: "FeatureCollection" as const, features: [] };
 
@@ -286,6 +298,33 @@ export function FleetMap({
           "icon-size": 0.6,
           "icon-allow-overlap": true,
           "icon-anchor": "bottom",
+        },
+      });
+
+      // --- task destinations ---
+      map.addSource("tasks", { type: "geojson", data: empty });
+      map.addLayer({
+        id: "task-markers",
+        type: "symbol",
+        source: "tasks",
+        layout: {
+          "icon-image": [
+            "case",
+            ["==", ["get", "priority"], "urgent"],
+            "task-destination-urgent",
+            "task-destination",
+          ],
+          "icon-size": 0.75,
+          "icon-allow-overlap": true,
+          "text-field": ["get", "label"],
+          "text-offset": [0, 1.4],
+          "text-size": 10,
+          "text-optional": true,
+        },
+        paint: {
+          "text-color": "#C9BCFF",
+          "text-halo-color": "#121417",
+          "text-halo-width": 1.2,
         },
       });
 
@@ -603,6 +642,27 @@ export function FleetMap({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
+    (map.getSource("tasks") as GeoJSONSource).setData({
+      type: "FeatureCollection",
+      features: taskDestinations.map((task) => ({
+        type: "Feature" as const,
+        id: task.id,
+        properties: {
+          id: task.id,
+          label: task.destination_label ?? task.title,
+          priority: task.priority,
+        },
+        geometry: {
+          type: "Point" as const,
+          coordinates: [task.destination_longitude, task.destination_latitude],
+        },
+      })),
+    });
+  }, [taskDestinations, ready]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
     (map.getSource("weather") as GeoJSONSource).setData({
       type: "FeatureCollection",
       features: weatherZones.map((zone) => ({
@@ -633,6 +693,7 @@ export function FleetMap({
       geofences: ["geofence-fill", "geofence-outline"],
       pois: ["poi-markers", "poi-clusters", "poi-cluster-count"],
       weather: ["weather-fill"],
+      tasks: ["task-markers"],
     };
     for (const [group, layerIds] of Object.entries(groups)) {
       const visible = layers[group as keyof LayerVisibility];

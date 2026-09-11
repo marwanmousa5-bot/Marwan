@@ -18,6 +18,7 @@ export function LayerControl({
     ["vehicles", strings.live.layerVehicles],
     ["geofences", strings.live.layerGeofences],
     ["pois", strings.live.layerPois],
+    ["tasks", strings.live.layerTasks],
     ["weather", strings.live.layerWeather],
   ];
 
