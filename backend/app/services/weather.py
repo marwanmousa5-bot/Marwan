@@ -20,12 +20,10 @@ import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.integrations.weather import get_weather_client
-from app.models.alert import Alert
 from app.models.device import Device
 from app.models.enums import (
     AlertRuleType,
     AlertSeverity,
-    AlertStatus,
     DeviceStatus,
     OrganizationStatus,
 )
@@ -210,32 +208,5 @@ async def expire_stale_zones(db: AsyncSession) -> int:
         sa.delete(WeatherZone).where(
             WeatherZone.expires_at.is_not(None), WeatherZone.expires_at < utcnow()
         )
-    )
-    return int(result.rowcount or 0)
-
-
-async def auto_resolve_stale_alerts(db: AsyncSession, older_than_hours: int = 6) -> int:
-    """Close weather and harsh-driving alerts that have aged out.
-
-    These describe a moment, not a standing condition. Leaving them active
-    forever would make the alert count meaningless within a day - and a KPI
-    nobody believes is worse than no KPI.
-    """
-    cutoff = utcnow() - timedelta(hours=older_than_hours)
-    result = await db.execute(
-        sa.update(Alert)
-        .where(
-            Alert.status == AlertStatus.ACTIVE,
-            Alert.created_at < cutoff,
-            Alert.rule_type.in_(
-                [
-                    AlertRuleType.WEATHER_DELAY,
-                    AlertRuleType.HARSH_DRIVING,
-                    AlertRuleType.SPEEDING,
-                    AlertRuleType.GEOFENCE_BREACH,
-                ]
-            ),
-        )
-        .values(status=AlertStatus.RESOLVED, resolved_at=utcnow())
     )
     return int(result.rowcount or 0)

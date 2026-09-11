@@ -558,3 +558,141 @@ async def test_cannot_attach_a_document_to_another_orgs_vehicle(
         },
     )
     assert response.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Momentary vs. standing alerts
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_momentary_alerts_stop_colouring_a_vehicle_red(
+    client: AsyncClient, db: AsyncSession, org_fixture
+) -> None:
+    """A speeding event from an hour ago must not pin a vehicle red.
+
+    Without this the whole fleet turns red within an hour of the feed running
+    and the status colour stops carrying any information.
+    """
+    from app.models.device import Device
+    from app.models.enums import DeviceStatus
+
+    org, vehicle = org_fixture["org"], org_fixture["vehicle"]
+    db.add(
+        Device(
+            serial_number="FB-ALERT-1",
+            status=DeviceStatus.ACTIVE,
+            organization_id=org.id,
+            vehicle_id=vehicle.id,
+        )
+    )
+    vehicle.last_latitude = 52.3676
+    vehicle.last_longitude = 4.9041
+    vehicle.last_speed_kph = 0.0
+    vehicle.last_position_at = datetime.now(UTC)
+    await db.flush()
+
+    alert = await alert_service.raise_alert(
+        db,
+        organization_id=org.id,
+        rule_type=AlertRuleType.SPEEDING,
+        title="Speeding",
+        message="132 km/h",
+        vehicle_id=vehicle.id,
+    )
+    assert alert is not None
+    await db.commit()
+
+    token = org_fixture["admin"]
+    fresh = await client.get("/api/v1/live/snapshot", headers=auth(token))
+    assert fresh.json()["vehicles"][0]["live_status"] == "alert"
+
+    # Age it past the map window.
+    alert.created_at = datetime.now(UTC) - timedelta(hours=1)
+    await db.commit()
+
+    aged = await client.get("/api/v1/live/snapshot", headers=auth(token))
+    assert aged.json()["vehicles"][0]["live_status"] == "idle"
+    # It is still in the feed - it just no longer demands attention.
+    assert (await client.get("/api/v1/alerts", headers=auth(token))).json()["total"] == 1
+
+
+@pytest.mark.asyncio
+async def test_standing_alerts_keep_colouring_a_vehicle_red(
+    client: AsyncClient, db: AsyncSession, org_fixture
+) -> None:
+    """A document that expired last week is still a problem today."""
+    from app.models.device import Device
+    from app.models.enums import DeviceStatus
+
+    org, vehicle = org_fixture["org"], org_fixture["vehicle"]
+    db.add(
+        Device(
+            serial_number="FB-ALERT-2",
+            status=DeviceStatus.ACTIVE,
+            organization_id=org.id,
+            vehicle_id=vehicle.id,
+        )
+    )
+    vehicle.last_position_at = datetime.now(UTC)
+    await db.flush()
+
+    alert = await alert_service.raise_alert(
+        db,
+        organization_id=org.id,
+        rule_type=AlertRuleType.DOCUMENT_EXPIRING,
+        title="Insurance expired",
+        message="Expired 7 days ago",
+        vehicle_id=vehicle.id,
+    )
+    assert alert is not None
+    alert.created_at = datetime.now(UTC) - timedelta(days=3)
+    await db.commit()
+
+    snapshot = await client.get("/api/v1/live/snapshot", headers=auth(org_fixture["admin"]))
+    assert snapshot.json()["vehicles"][0]["live_status"] == "alert"
+
+
+@pytest.mark.asyncio
+async def test_sweep_resolves_only_aged_momentary_alerts(
+    db: AsyncSession, org_fixture
+) -> None:
+    org = org_fixture["org"]
+
+    recent = await alert_service.raise_alert(
+        db,
+        organization_id=org.id,
+        rule_type=AlertRuleType.HARSH_DRIVING,
+        title="Harsh braking",
+        message="-4.2 m/s2",
+    )
+    old = await alert_service.raise_alert(
+        db,
+        organization_id=org.id,
+        rule_type=AlertRuleType.SPEEDING,
+        title="Speeding",
+        message="128 km/h",
+        dedupe_key="old-speeding",
+    )
+    standing = await alert_service.raise_alert(
+        db,
+        organization_id=org.id,
+        rule_type=AlertRuleType.MAINTENANCE_DUE,
+        title="Service due",
+        message="Overdue by 300 km",
+    )
+    assert recent and old and standing
+
+    stale = datetime.now(UTC) - timedelta(hours=5)
+    old.created_at = stale
+    standing.created_at = stale
+    await db.flush()
+
+    assert await alert_service.auto_resolve_momentary_alerts(db) == 1
+    await db.flush()
+    await db.refresh(recent)
+    await db.refresh(old)
+    await db.refresh(standing)
+
+    assert recent.status == "active", "a recent event is left alone"
+    assert old.status == "resolved", "an aged momentary event is swept"
+    assert standing.status == "active", "a standing condition is never swept"

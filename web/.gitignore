@@ -1,0 +1,5 @@
+# Next.js build output and TypeScript incremental cache
+.next/
+out/
+tsconfig.tsbuildinfo
+next-env.d.ts

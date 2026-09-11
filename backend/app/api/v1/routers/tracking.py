@@ -41,6 +41,7 @@ from app.schemas.tracking import (
     TripPlayback,
     TripPoint,
 )
+from app.services import alerts as alert_service
 from app.services.vehicles import MOVING_SPEED_THRESHOLD_KPH
 
 router = APIRouter(tags=["tracking"])
@@ -76,14 +77,16 @@ async def live_snapshot(
     )
     pairs = rows.all()
 
+    # Only alerts that still warrant attention colour a vehicle red - a
+    # speeding event from an hour ago does not (see alerts.MOMENTARY_RULE_TYPES).
     alert_counts = dict(
         (
             await db.execute(
                 sa.select(Alert.vehicle_id, sa.func.count())
                 .where(
                     Alert.organization_id == scope.organization_id,
-                    Alert.status == AlertStatus.ACTIVE,
                     Alert.vehicle_id.is_not(None),
+                    alert_service.map_alert_condition(now),
                 )
                 .group_by(Alert.vehicle_id)
             )

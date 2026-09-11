@@ -140,3 +140,18 @@ export const api = {
     apiFetch<T>(path, { method: "PATCH", body }),
   delete: <T>(path: string) => apiFetch<T>(path, { method: "DELETE" }),
 };
+
+/**
+ * WebSocket URL for the live feed.
+ *
+ * The access token travels as a query parameter because browsers cannot set
+ * headers on a WebSocket handshake. It is the same short-lived signed token
+ * the REST API uses, and the server still derives the Organization from the
+ * token rather than trusting anything the client sends.
+ */
+export function liveSocketUrl(): string | null {
+  const tokens = tokenStore.read();
+  if (!tokens) return null;
+  const base = API_BASE_URL.replace(/^http/, "ws");
+  return `${base}/live/ws?token=${encodeURIComponent(tokens.access_token)}`;
+}

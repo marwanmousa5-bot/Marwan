@@ -99,12 +99,28 @@ def refresh_weather_zones() -> dict[str, int]:
         outcome = await _for_each_organization(handle)
         async with SessionLocal() as db:
             expired = await weather.expire_stale_zones(db)
-            resolved = await weather.auto_resolve_stale_alerts(db)
             await db.commit()
-        return {**outcome, "expired_zones": expired, "auto_resolved_alerts": resolved}
+        return {**outcome, "expired_zones": expired}
 
     result = run_async(run)
     logger.info("Weather refresh: %s", result)
+    return result
+
+
+@celery_app.task(name="fleetbeat.alerts.sweep_momentary")
+def sweep_momentary_alerts() -> dict[str, int]:
+    """Resolve aged-out momentary alerts so the feed stays meaningful."""
+    from app.services.alerts import auto_resolve_momentary_alerts
+
+    async def run() -> dict[str, int]:
+        async with SessionLocal() as db:
+            resolved = await auto_resolve_momentary_alerts(db)
+            await db.commit()
+        return {"resolved": resolved}
+
+    result = run_async(run)
+    if result["resolved"]:
+        logger.info("Momentary alert sweep: %s", result)
     return result
 
 

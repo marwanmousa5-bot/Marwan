@@ -31,9 +31,65 @@ from app.models.maintenance import MaintenanceSchedule
 from app.models.organization import DEFAULT_ALERT_THRESHOLDS, OrganizationSettings
 from app.models.vehicle import Vehicle
 
+#: Alerts that describe a *moment* rather than a standing condition. A
+#: speeding event twenty minutes ago is history, not something a dispatcher
+#: must act on now - so these stop colouring a vehicle red once they age out,
+#: and are swept to resolved shortly after. Without this distinction a fleet
+#: turns uniformly red within an hour and the status colour stops meaning
+#: anything at all.
+MOMENTARY_RULE_TYPES: frozenset[str] = frozenset(
+    {
+        AlertRuleType.SPEEDING,
+        AlertRuleType.HARSH_DRIVING,
+        AlertRuleType.GEOFENCE_BREACH,
+        AlertRuleType.WEATHER_DELAY,
+        AlertRuleType.ANOMALY,
+    }
+)
+
+#: How long a momentary alert keeps a vehicle red on the live map.
+MAP_ALERT_WINDOW = timedelta(minutes=15)
+
+#: How long a momentary alert stays in the feed before being auto-resolved.
+MOMENTARY_ALERT_TTL = timedelta(hours=2)
+
 
 def utcnow() -> datetime:
     return datetime.now(UTC)
+
+
+def map_alert_condition(now: datetime | None = None):
+    """SQL condition for "this alert should colour its vehicle red".
+
+    Standing conditions count while active; momentary ones only while recent.
+    """
+    cutoff = (now or utcnow()) - MAP_ALERT_WINDOW
+    return sa.and_(
+        Alert.status == AlertStatus.ACTIVE,
+        sa.or_(
+            Alert.rule_type.not_in(list(MOMENTARY_RULE_TYPES)),
+            Alert.created_at >= cutoff,
+        ),
+    )
+
+
+async def auto_resolve_momentary_alerts(db: AsyncSession) -> int:
+    """Close aged-out momentary alerts platform-wide.
+
+    Run frequently from Celery beat. Standing conditions - maintenance due, a
+    document expiring - are never touched here: those stay open until someone
+    actually deals with them.
+    """
+    result = await db.execute(
+        sa.update(Alert)
+        .where(
+            Alert.status == AlertStatus.ACTIVE,
+            Alert.created_at < utcnow() - MOMENTARY_ALERT_TTL,
+            Alert.rule_type.in_(list(MOMENTARY_RULE_TYPES)),
+        )
+        .values(status=AlertStatus.RESOLVED, resolved_at=utcnow())
+    )
+    return int(result.rowcount or 0)
 
 
 async def _rule(
@@ -154,8 +210,8 @@ async def active_alert_vehicle_ids(
     result = await db.execute(
         sa.select(Alert.vehicle_id).where(
             Alert.organization_id == scope.organization_id,
-            Alert.status == AlertStatus.ACTIVE,
             Alert.vehicle_id.is_not(None),
+            map_alert_condition(),
         )
     )
     return {row[0] for row in result.all()}

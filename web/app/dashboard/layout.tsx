@@ -16,20 +16,18 @@ import { PulseLoader } from "@/components/PulseLoader";
  */
 const NAV = [
   { href: "/dashboard", label: strings.nav.liveTracking, phase: null },
+  { href: "/dashboard/history", label: strings.nav.history, phase: null },
   { href: "/dashboard/vehicles", label: strings.nav.vehicles, phase: null },
   { href: "/dashboard/drivers", label: strings.nav.drivers, phase: null },
-  { href: "/dashboard/tasks", label: strings.nav.tasks, phase: "Phase 3" },
+  { href: "/dashboard/zones", label: strings.nav.zones, phase: null },
   {
     href: "/dashboard/maintenance",
     label: strings.nav.maintenance,
-    phase: "Phase 2",
+    phase: null,
   },
-  { href: "/dashboard/fuel", label: strings.nav.fuel, phase: "Phase 2" },
-  {
-    href: "/dashboard/compliance",
-    label: strings.nav.compliance,
-    phase: "Phase 2",
-  },
+  { href: "/dashboard/fuel", label: strings.nav.fuel, phase: null },
+  { href: "/dashboard/compliance", label: strings.nav.compliance, phase: null },
+  { href: "/dashboard/tasks", label: strings.nav.tasks, phase: "Phase 3" },
   {
     href: "/dashboard/analytics",
     label: strings.nav.analytics,

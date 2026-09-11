@@ -18,7 +18,7 @@ import { PulseLoader } from "@/components/PulseLoader";
  */
 const NAV = [
   { href: "/platform-admin", label: strings.platform.organizations, phase: null },
-  { href: "/platform-admin/devices", label: strings.platform.devices, phase: "Phase 2" },
+  { href: "/platform-admin/devices", label: strings.platform.devices, phase: null },
   { href: "/platform-admin/audit", label: strings.platform.auditLog, phase: "Phase 6" },
 ] as const;
 

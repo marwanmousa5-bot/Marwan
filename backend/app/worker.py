@@ -57,6 +57,10 @@ celery_app.conf.beat_schedule = {
         "task": "fleetbeat.weather.refresh_zones",
         "schedule": crontab(minute="*/30"),
     },
+    "sweep-momentary-alerts": {
+        "task": "fleetbeat.alerts.sweep_momentary",
+        "schedule": crontab(minute="*/10"),
+    },
     "run-fleet-copilot": {
         "task": "fleetbeat.ai.run_copilot",
         "schedule": 120.0,  # every 2 minutes (Section 4e)
