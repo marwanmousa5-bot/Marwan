@@ -20,6 +20,7 @@ export function LayerControl({
     ["pois", strings.live.layerPois],
     ["tasks", strings.live.layerTasks],
     ["weather", strings.live.layerWeather],
+    ["closures", strings.live.layerClosures],
   ];
 
   return (

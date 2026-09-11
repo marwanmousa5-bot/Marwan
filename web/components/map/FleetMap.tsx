@@ -23,7 +23,14 @@ import maplibregl, {
   type MapGeoJSONFeature,
 } from "maplibre-gl";
 
-import type { Geofence, LiveVehicle, Poi, Task, WeatherZone } from "@/lib/types";
+import type {
+  Geofence,
+  LiveVehicle,
+  Poi,
+  RoadClosure,
+  Task,
+  WeatherZone,
+} from "@/lib/types";
 import { CLUSTER_NEUTRAL, STATUS_COLORS, basemapStyle } from "./mapStyle";
 import { POI_COLORS, destinationMarker, poiPin, vehicleArrow } from "./icons";
 
@@ -44,6 +51,7 @@ export interface LayerVisibility {
   pois: boolean;
   weather: boolean;
   tasks: boolean;
+  closures: boolean;
 }
 
 interface FleetMapProps {
@@ -51,6 +59,8 @@ interface FleetMapProps {
   geofences: Geofence[];
   pois: Poi[];
   weatherZones: WeatherZone[];
+  /** Road closures in force, the input to Exception Auto-Rerouting. */
+  roadClosures?: RoadClosure[];
   /** Active task destinations, drawn distinctly from vehicles and POIs. */
   taskDestinations?: Task[];
   layers: LayerVisibility;
@@ -124,6 +134,7 @@ export function FleetMap({
   geofences,
   pois,
   weatherZones,
+  roadClosures = [],
   taskDestinations = [],
   layers,
   selectedVehicleId,
@@ -224,6 +235,25 @@ export function FleetMap({
             "#F5A623",
           ],
           "fill-opacity": 0.14,
+        },
+      });
+
+      // --- road closures: coral, because a closure is a live disruption ---
+      map.addSource("closures", { type: "geojson", data: empty });
+      map.addLayer({
+        id: "closure-fill",
+        type: "fill",
+        source: "closures",
+        paint: { "fill-color": "#FF6B35", "fill-opacity": 0.18 },
+      });
+      map.addLayer({
+        id: "closure-outline",
+        type: "line",
+        source: "closures",
+        paint: {
+          "line-color": "#FF6B35",
+          "line-width": 2,
+          "line-dasharray": [2, 1.5],
         },
       });
 
@@ -679,6 +709,26 @@ export function FleetMap({
     });
   }, [weatherZones, ready]);
 
+  useEffect(() => {
+    const map = mapRef.current;
+    const source = map?.getSource("closures") as GeoJSONSource | undefined;
+    if (!source || !ready) return;
+    source.setData({
+      type: "FeatureCollection",
+      features: roadClosures.map((closure) => ({
+        type: "Feature" as const,
+        id: closure.id,
+        properties: { label: closure.label },
+        geometry: {
+          type: "Polygon" as const,
+          coordinates: [
+            circlePolygon([closure.longitude, closure.latitude], closure.radius_m),
+          ],
+        },
+      })),
+    });
+  }, [roadClosures, ready]);
+
   // --- layer toggles -----------------------------------------------------
   useEffect(() => {
     const map = mapRef.current;
@@ -693,6 +743,7 @@ export function FleetMap({
       geofences: ["geofence-fill", "geofence-outline"],
       pois: ["poi-markers", "poi-clusters", "poi-cluster-count"],
       weather: ["weather-fill"],
+      closures: ["closure-fill", "closure-outline"],
       tasks: ["task-markers"],
     };
     for (const [group, layerIds] of Object.entries(groups)) {

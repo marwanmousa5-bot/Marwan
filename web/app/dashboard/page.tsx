@@ -20,6 +20,7 @@ import { useLiveFeed } from "@/lib/useLiveFeed";
 import type {
   Alert,
   Geofence,
+  RoadClosure,
   LiveKpis,
   LiveSnapshot,
   LiveVehicle,
@@ -83,12 +84,15 @@ export default function LiveTrackingPage() {
   const [rail, setRail] = useState<"alerts" | "copilot">("alerts");
   const [drawMode, setDrawMode] = useState<DrawMode>("none");
   const [poiMode, setPoiMode] = useState(false);
+  const [closureMode, setClosureMode] = useState(false);
+  const [roadClosures, setRoadClosures] = useState<RoadClosure[]>([]);
   const [layers, setLayers] = useState<LayerVisibility>({
     vehicles: true,
     geofences: true,
     pois: true,
     weather: false,
     tasks: true,
+    closures: true,
   });
 
   const loadedOnce = useRef(false);
@@ -118,18 +122,20 @@ export default function LiveTrackingPage() {
     let cancelled = false;
     (async () => {
       try {
-        const [, , , fences, points, zones] = await Promise.all([
+        const [, , , fences, points, zones, closures] = await Promise.all([
           loadSnapshot(),
           loadAlerts(),
           loadTaskDestinations(),
           api.get<Geofence[]>("/geofences"),
           api.get<Poi[]>("/pois"),
           api.get<WeatherZone[]>("/weather-zones"),
+          api.get<RoadClosure[]>("/road-closures"),
         ]);
         if (cancelled) return;
         setGeofences(fences);
         setPois(points);
         setWeatherZones(zones);
+        setRoadClosures(closures);
         setError(null);
       } catch {
         if (!cancelled) setError("We could not load your live fleet view.");
@@ -204,6 +210,25 @@ export default function LiveTrackingPage() {
   }
 
   async function handleMapClick(lngLat: { lng: number; lat: number }) {
+    if (closureMode) {
+      setClosureMode(false);
+      const label = window.prompt(strings.live.closurePrompt);
+      if (!label) return;
+      try {
+        const created = await api.post<RoadClosure>("/road-closures", {
+          label,
+          latitude: lngLat.lat,
+          longitude: lngLat.lng,
+          radius_m: 400,
+        });
+        setRoadClosures((current) => [created, ...current]);
+      } catch (err) {
+        setError(
+          err instanceof ApiError ? err.message : "We could not flag that closure.",
+        );
+      }
+      return;
+    }
     if (!poiMode) return;
     setPoiMode(false);
     const name = window.prompt("Name this point of interest");
@@ -346,6 +371,7 @@ export default function LiveTrackingPage() {
             pois={pois}
             weatherZones={weatherZones}
             taskDestinations={taskDestinations}
+            roadClosures={roadClosures}
             layers={layers}
             selectedVehicleId={selectedId}
             onSelectVehicle={setSelectedId}
@@ -381,6 +407,7 @@ export default function LiveTrackingPage() {
                 <button
                   onClick={() => {
                     setDrawMode("none");
+                    setClosureMode(false);
                     setPoiMode((on) => !on);
                   }}
                   className={`mt-2 w-full rounded px-2 py-1 text-[11px] transition ${
@@ -390,6 +417,22 @@ export default function LiveTrackingPage() {
                   }`}
                 >
                   {poiMode ? "Click the map…" : strings.live.addPoi}
+                </button>
+                {/* Coral, not electric: a closure is a live disruption, and it
+                    is the one thing here that feeds auto-rerouting. */}
+                <button
+                  onClick={() => {
+                    setDrawMode("none");
+                    setPoiMode(false);
+                    setClosureMode((on) => !on);
+                  }}
+                  className={`mt-1.5 w-full rounded px-2 py-1 text-[11px] transition ${
+                    closureMode
+                      ? "bg-coral text-ink-900"
+                      : "bg-ink-700 text-ink-200 hover:bg-ink-600"
+                  }`}
+                >
+                  {closureMode ? "Click the map…" : strings.live.flagClosure}
                 </button>
               </div>
             )}

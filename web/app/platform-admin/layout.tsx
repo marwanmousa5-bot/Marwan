@@ -19,7 +19,7 @@ import { PulseLoader } from "@/components/PulseLoader";
 const NAV = [
   { href: "/platform-admin", label: strings.platform.organizations, phase: null },
   { href: "/platform-admin/devices", label: strings.platform.devices, phase: null },
-  { href: "/platform-admin/audit", label: strings.platform.auditLog, phase: "Phase 6" },
+  { href: "/platform-admin/audit", label: strings.platform.auditLog, phase: null },
 ] as const;
 
 export default function PlatformAdminLayout({

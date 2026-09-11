@@ -676,3 +676,78 @@ export interface ReportSummary {
   generated_by: string;
   created_at: string;
 }
+
+// --- Phase 6: rerouting, audit trail, sign-in activity ----------------------
+
+export interface RoadClosure {
+  id: string;
+  label: string;
+  latitude: number;
+  longitude: number;
+  radius_m: number;
+  active_from: string | null;
+  active_until: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface RerouteProposal {
+  task_id: string;
+  task_title: string;
+  route_id: string;
+  obstruction_kind: string;
+  obstruction_id: string;
+  obstruction_label: string;
+  added_km: number | null;
+  added_minutes: number | null;
+  new_distance_km: number | null;
+  new_eta: string | null;
+  routing_available: boolean;
+}
+
+export interface AuditEntry {
+  id: string;
+  organization_id: string | null;
+  actor_user_id: string | null;
+  actor_email: string | null;
+  actor_role: string | null;
+  impersonator_user_id: string | null;
+  action: string;
+  entity_type: string | null;
+  entity_id: string | null;
+  summary: string | null;
+  /** Stored as one before/after pair of field maps; a creation has no before. */
+  changes: { before?: Record<string, unknown>; after?: Record<string, unknown> } | null;
+  ip_address: string | null;
+  user_agent: string | null;
+  created_at: string;
+  organization_name: string | null;
+}
+
+export interface LoginAttempt {
+  id: string;
+  email: string;
+  user_id: string | null;
+  successful: boolean;
+  ip_address: string | null;
+  user_agent: string | null;
+  suspicious: boolean;
+  suspicion_reason: string | null;
+  attempted_at: string;
+}
+
+export interface KnownDevice {
+  id: string;
+  user_id: string;
+  label: string | null;
+  last_ip: string | null;
+  last_seen_at: string | null;
+  created_at: string;
+}
+
+export interface SecurityOverview {
+  suspicious_logins_7d: number;
+  failed_logins_7d: number;
+  locked_accounts: number;
+  users_without_a_known_device: number;
+}

@@ -299,6 +299,13 @@ async def apply_reroute(
         replaced_route_id=current.id,
         reroute_reason=f"{obstruction.kind}: {obstruction.label}",
     )
+    # Snapshot before mutating, or the audit diff records the new ETA as the
+    # old one and shows no change at all.
+    before = {
+        "route_id": current.id,
+        "eta": task.eta,
+        "distance_km": current.distance_km,
+    }
     current.is_active = False
     task.route_id = new_route.id
     task.eta = preview.eta
@@ -316,10 +323,14 @@ async def apply_reroute(
             if proposal.added_km is not None and proposal.added_minutes is not None
             else f"Rerouted '{task.title}' around {obstruction.label}"
         ),
-        changes={
-            "route_id": {"before": str(current.id), "after": str(new_route.id)},
-            "eta": {"before": None, "after": preview.eta.isoformat()},
-        },
+        changes=audit.diff(
+            before,
+            {
+                "route_id": new_route.id,
+                "eta": preview.eta,
+                "distance_km": preview.distance_km,
+            },
+        ),
         request=request,
     )
 

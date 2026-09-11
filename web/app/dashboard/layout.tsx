@@ -32,6 +32,8 @@ const NAV = [
   { href: "/dashboard/analytics", label: strings.nav.analytics, phase: null },
   { href: "/dashboard/safety", label: strings.nav.safety, phase: null },
   { href: "/dashboard/reports", label: strings.nav.reports, phase: null },
+  { href: "/dashboard/audit", label: strings.nav.audit, phase: null },
+  { href: "/dashboard/security", label: strings.nav.security, phase: null },
 ] as const;
 
 export default function DashboardLayout({
