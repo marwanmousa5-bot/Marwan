@@ -9,6 +9,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from app.api.v1.routers import (
+    ai,
     alerts,
     analytics,
     auth,
@@ -35,6 +36,7 @@ api_router.include_router(maps.router)
 api_router.include_router(alerts.router)
 api_router.include_router(operations.router)
 api_router.include_router(analytics.router)
+api_router.include_router(ai.router)
 api_router.include_router(tasks.router)
 api_router.include_router(driver.router)
 api_router.include_router(platform_admin.router)

@@ -65,6 +65,15 @@ celery_app.conf.beat_schedule = {
         "task": "fleetbeat.ai.run_copilot",
         "schedule": 120.0,  # every 2 minutes (Section 4e)
     },
+    "propose-maintenance-windows": {
+        "task": "fleetbeat.ai.propose_maintenance_windows",
+        "schedule": crontab(minute=50, hour=5),
+    },
+    "generate-weekly-reports": {
+        "task": "fleetbeat.reports.generate_weekly",
+        # Monday morning, so the week's report is waiting when people arrive.
+        "schedule": crontab(minute=0, hour=6, day_of_week=1),
+    },
     "recompute-driver-scores": {
         "task": "fleetbeat.ai.recompute_driver_scores",
         "schedule": crontab(minute=5, hour="*"),

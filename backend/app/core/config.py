@@ -57,7 +57,7 @@ class Settings(BaseSettings):
     osrm_base_url: str = "http://osrm:5000"
     open_meteo_base_url: str = "https://api.open-meteo.com/v1"
     anthropic_api_key: str | None = None
-    anthropic_model: str = "claude-sonnet-5"
+    anthropic_model: str = "claude-opus-5"
 
     # --- Simulation engine (Section 6) ---
     simulation_enabled: bool = True

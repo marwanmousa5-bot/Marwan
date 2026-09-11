@@ -126,9 +126,48 @@ def sweep_momentary_alerts() -> dict[str, int]:
 
 @celery_app.task(name="fleetbeat.ai.run_copilot")
 def run_fleet_copilot() -> dict[str, int]:
-    """Phase 5: AI Fleet Copilot recommendation pass (Section 4e)."""
-    logger.debug("fleet copilot: not implemented until Phase 5")
-    return {"recommendations": 0}
+    """AI Fleet Copilot recommendation pass (Section 4e)."""
+    from app.ai import copilot
+
+    async def handle(db, organization_id) -> int:
+        created = await copilot.run_copilot(db, organization_id)
+        return len(created)
+
+    result = run_async(lambda: _for_each_organization(handle))
+    if result["produced"]:
+        logger.info("Fleet copilot pass: %s", result)
+    return result
+
+
+@celery_app.task(name="fleetbeat.ai.propose_maintenance_windows")
+def propose_maintenance_windows() -> dict[str, int]:
+    """Maintenance Copilot: suggest (or auto-book) service windows."""
+    from app.ai import copilot
+
+    async def handle(db, organization_id) -> int:
+        proposals = await copilot.propose_maintenance_windows(db, organization_id)
+        return len(proposals)
+
+    result = run_async(lambda: _for_each_organization(handle))
+    logger.info("Maintenance copilot: %s", result)
+    return result
+
+
+@celery_app.task(name="fleetbeat.reports.generate_weekly")
+def generate_weekly_reports() -> dict[str, int]:
+    """Write each Organization's weekly narrative summary."""
+    from app.ai import reports
+    from app.core.tenancy import TenantScope
+
+    async def handle(db, organization_id) -> int:
+        await reports.generate_summary(
+            db, TenantScope(organization_id), period_type="weekly"
+        )
+        return 1
+
+    result = run_async(lambda: _for_each_organization(handle))
+    logger.info("Weekly reports: %s", result)
+    return result
 
 
 @celery_app.task(name="fleetbeat.ai.recompute_driver_scores")

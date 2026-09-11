@@ -25,3 +25,6 @@ redis==5.2.1
 # --- HTTP client (OSRM, Open-Meteo, Claude API) ---
 httpx==0.28.1
 
+
+# --- Claude API (AI layer, Section 5) ---
+anthropic==1.5.0
