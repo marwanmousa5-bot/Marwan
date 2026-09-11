@@ -1,0 +1,29 @@
+# --- Web framework ---
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+
+# --- Database ---
+sqlalchemy[asyncio]==2.0.36
+asyncpg==0.30.0
+alembic==1.14.0
+greenlet==3.1.1
+
+# --- Auth / security ---
+pyjwt==2.10.1
+argon2-cffi==23.1.0
+email-validator==2.2.0
+
+# --- Settings / config ---
+pydantic==2.10.4
+pydantic-settings==2.7.0
+
+# --- Background jobs (Section 3) ---
+celery==5.4.0
+redis==5.2.1
+
+# --- HTTP client (OSRM, Open-Meteo, Claude API) ---
+httpx==0.28.1
+
+# --- Geometry helpers (geofences) ---
+shapely==2.0.6

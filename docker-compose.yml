@@ -1,0 +1,122 @@
+# FleetBeat local development stack.
+#
+#   docker compose up --build
+#
+# Brings up: Postgres, Redis, the FastAPI API (migrated + seeded), the Celery
+# worker and beat scheduler, and the Next.js web dashboard.
+#
+# The OSRM routing engine is behind the `routing` profile because it needs an
+# OpenStreetMap extract to be downloaded and pre-processed first - see
+# infra/osrm/README.md. Start it with:
+#
+#   docker compose --profile routing up osrm
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-fleetbeat}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fleetbeat}
+      POSTGRES_DB: ${POSTGRES_DB:-fleetbeat}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fleetbeat}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: ./backend
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    entrypoint: ["./entrypoint.sh"]
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-fleetbeat}:${POSTGRES_PASSWORD:-fleetbeat}@db:5432/${POSTGRES_DB:-fleetbeat}
+      REDIS_URL: redis://redis:6379/0
+      OSRM_BASE_URL: http://osrm:5000
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: ./backend
+    command: ["celery", "-A", "app.worker.celery_app", "worker", "--loglevel=info"]
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-fleetbeat}:${POSTGRES_PASSWORD:-fleetbeat}@db:5432/${POSTGRES_DB:-fleetbeat}
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - ./backend:/app
+    depends_on:
+      api:
+        condition: service_started
+      redis:
+        condition: service_healthy
+
+  beat:
+    build:
+      context: ./backend
+    command: ["celery", "-A", "app.worker.celery_app", "beat", "--loglevel=info"]
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-fleetbeat}:${POSTGRES_PASSWORD:-fleetbeat}@db:5432/${POSTGRES_DB:-fleetbeat}
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - ./backend:/app
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ./web
+    command: ["npm", "run", "dev"]
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000/api/v1}
+      NODE_ENV: development
+      WATCHPACK_POLLING: "true"
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./web:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - api
+
+  # Real routing engine (Section 3). Opt-in: needs a pre-processed OSM extract.
+  osrm:
+    image: ghcr.io/project-osrm/osrm-backend:latest
+    profiles: ["routing"]
+    command: ["osrm-routed", "--algorithm", "mld", "/data/${OSRM_REGION:-region}.osrm"]
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./infra/osrm/data:/data
+
+volumes:
+  postgres_data:
