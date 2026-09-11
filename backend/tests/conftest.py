@@ -29,9 +29,11 @@ from app.core.security import hash_password  # noqa: E402
 from app.db.session import get_db  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models import Base  # noqa: E402
+from app.models.alert import AlertRule  # noqa: E402
 from app.models.enums import UserRole, UserStatus  # noqa: E402
 from app.models.organization import Organization, OrganizationSettings  # noqa: E402
 from app.models.user import User  # noqa: E402
+from app.services.provisioning import DEFAULT_ALERT_RULES  # noqa: E402
 
 TEST_PASSWORD = "TestPassw0rd!2026"
 
@@ -80,10 +82,23 @@ async def client(session_factory) -> AsyncGenerator[AsyncClient, None]:
 # ---------------------------------------------------------------------------
 
 async def make_organization(db: AsyncSession, name: str) -> Organization:
-    org = Organization(name=name, slug=f"{name.lower().replace(' ', '-')}-{uuid.uuid4().hex[:6]}")
+    """Create a tenant the way provisioning does - settings and alert rules included."""
+    org = Organization(
+        name=name, slug=f"{name.lower().replace(' ', '-')}-{uuid.uuid4().hex[:6]}"
+    )
     db.add(org)
     await db.flush()
     db.add(OrganizationSettings(organization_id=org.id))
+    for rule_type, severity in DEFAULT_ALERT_RULES:
+        db.add(
+            AlertRule(
+                organization_id=org.id,
+                rule_type=rule_type,
+                severity=severity,
+                is_enabled=True,
+                parameters={},
+            )
+        )
     await db.flush()
     return org
 

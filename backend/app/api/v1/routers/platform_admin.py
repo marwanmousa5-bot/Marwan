@@ -28,6 +28,13 @@ from app.models.organization import Organization
 from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.schemas.auth import TokenPair, UserOut
+from app.schemas.common import Page
+from app.schemas.device import (
+    DeviceAssign,
+    DeviceCreate,
+    DeviceDetailOut,
+    DeviceStatusUpdate,
+)
 from app.schemas.organization import (
     OrganizationCreate,
     OrganizationHealth,
@@ -42,6 +49,7 @@ from app.schemas.platform import (
 )
 from app.services import audit, provisioning
 from app.services import auth as auth_service
+from app.services import devices as device_service
 
 router = APIRouter(prefix="/platform-admin", tags=["platform-admin"])
 
@@ -393,3 +401,183 @@ async def impersonate_organization(
             expires_in=settings.access_token_expire_minutes * 60,
         ),
     )
+
+
+# ---------------------------------------------------------------------------
+# Device inventory (Section 4a item 2)
+#
+# Every route here is `super_admin`-only. Customers get read-only visibility
+# of the device fitted to their own vehicle through `/vehicles`, and have no
+# way to add, remove or reassign one (Section 9).
+# ---------------------------------------------------------------------------
+
+
+async def _decorate(db: AsyncSession, devices: list[Device]) -> list[DeviceDetailOut]:
+    """Attach organization and vehicle names for the inventory table."""
+    org_ids = {d.organization_id for d in devices if d.organization_id}
+    vehicle_ids = {d.vehicle_id for d in devices if d.vehicle_id}
+
+    org_names: dict[uuid.UUID, str] = {}
+    if org_ids:
+        rows = await db.execute(
+            sa.select(Organization.id, Organization.name).where(
+                Organization.id.in_(org_ids)
+            )
+        )
+        org_names = {row[0]: row[1] for row in rows.all()}
+
+    vehicles: dict[uuid.UUID, tuple[str, str]] = {}
+    if vehicle_ids:
+        rows = await db.execute(
+            sa.select(Vehicle.id, Vehicle.name, Vehicle.license_plate).where(
+                Vehicle.id.in_(vehicle_ids)
+            )
+        )
+        vehicles = {row[0]: (row[1], row[2]) for row in rows.all()}
+
+    out: list[DeviceDetailOut] = []
+    for device in devices:
+        detail = DeviceDetailOut.model_validate(device)
+        if device.organization_id:
+            detail.organization_name = org_names.get(device.organization_id)
+        if device.vehicle_id and device.vehicle_id in vehicles:
+            detail.vehicle_name, detail.vehicle_plate = vehicles[device.vehicle_id]
+        out.append(detail)
+    return out
+
+
+@router.get(
+    "/devices",
+    response_model=Page[DeviceDetailOut],
+    summary="GPS device inventory",
+)
+async def list_devices(
+    status_filter: DeviceStatus | None = Query(default=None, alias="status"),
+    organization_id: uuid.UUID | None = Query(default=None),
+    search: str | None = Query(default=None, max_length=120),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    _: Principal = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_db),
+) -> Page[DeviceDetailOut]:
+    devices, total = await device_service.list_devices(
+        db,
+        status=status_filter,
+        organization_id=organization_id,
+        search=search,
+        limit=limit,
+        offset=offset,
+    )
+    return Page[DeviceDetailOut](
+        items=await _decorate(db, devices), total=total, limit=limit, offset=offset
+    )
+
+
+@router.post(
+    "/devices",
+    response_model=DeviceDetailOut,
+    status_code=status.HTTP_201_CREATED,
+    summary="Receive a new device into inventory",
+)
+async def add_device(
+    payload: DeviceCreate,
+    request: Request,
+    principal: Principal = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_db),
+) -> DeviceDetailOut:
+    device = await device_service.add_device(
+        db,
+        serial_number=payload.serial_number,
+        imei=payload.imei,
+        model=payload.model,
+        firmware_version=payload.firmware_version,
+        notes=payload.notes,
+        principal=principal,
+        request=request,
+    )
+    return (await _decorate(db, [device]))[0]
+
+
+@router.post(
+    "/devices/{device_id}/assign",
+    response_model=DeviceDetailOut,
+    summary="Fit a device to a customer's vehicle and take it live",
+)
+async def assign_device(
+    device_id: uuid.UUID,
+    payload: DeviceAssign,
+    request: Request,
+    principal: Principal = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_db),
+) -> DeviceDetailOut:
+    device = await device_service.assign_device(
+        db,
+        device_id=device_id,
+        organization_id=payload.organization_id,
+        vehicle_id=payload.vehicle_id,
+        activate=payload.activate,
+        principal=principal,
+        request=request,
+    )
+    return (await _decorate(db, [device]))[0]
+
+
+@router.post(
+    "/devices/{device_id}/unassign",
+    response_model=DeviceDetailOut,
+    summary="Remove a device from a vehicle and return it to stock",
+)
+async def unassign_device(
+    device_id: uuid.UUID,
+    request: Request,
+    principal: Principal = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_db),
+) -> DeviceDetailOut:
+    device = await device_service.unassign_device(
+        db, device_id=device_id, principal=principal, request=request
+    )
+    return (await _decorate(db, [device]))[0]
+
+
+@router.patch(
+    "/devices/{device_id}/status",
+    response_model=DeviceDetailOut,
+    summary="Mark a device in stock, faulty or retired",
+)
+async def update_device_status(
+    device_id: uuid.UUID,
+    payload: DeviceStatusUpdate,
+    request: Request,
+    principal: Principal = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_db),
+) -> DeviceDetailOut:
+    device = await device_service.set_device_status(
+        db,
+        device_id=device_id,
+        status=payload.status,
+        notes=payload.notes,
+        principal=principal,
+        request=request,
+    )
+    return (await _decorate(db, [device]))[0]
+
+
+@router.get(
+    "/organizations/{organization_id}/vehicles",
+    response_model=list[dict],
+    summary="An organization's vehicles, for the device assignment picker",
+)
+async def list_organization_vehicles(
+    organization_id: uuid.UUID,
+    _: Principal = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    result = await db.execute(
+        sa.select(Vehicle.id, Vehicle.name, Vehicle.license_plate)
+        .where(Vehicle.organization_id == organization_id)
+        .order_by(Vehicle.name)
+    )
+    return [
+        {"id": str(row[0]), "name": row[1], "license_plate": row[2]}
+        for row in result.all()
+    ]

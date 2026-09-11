@@ -25,5 +25,3 @@ redis==5.2.1
 # --- HTTP client (OSRM, Open-Meteo, Claude API) ---
 httpx==0.28.1
 
-# --- Geometry helpers (geofences) ---
-shapely==2.0.6

@@ -91,6 +91,24 @@ services:
       redis:
         condition: service_healthy
 
+  # The GPS tracking feed (Section 6). Deliberately a long-lived loop rather
+  # than a Celery task: it ticks every few seconds and carries per-vehicle
+  # state between ticks. Only vehicles with an ACTIVE device produce data.
+  simulator:
+    build:
+      context: ./backend
+    command: ["python", "-m", "app.simulation"]
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-fleetbeat}:${POSTGRES_PASSWORD:-fleetbeat}@db:5432/${POSTGRES_DB:-fleetbeat}
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - ./backend:/app
+    depends_on:
+      api:
+        condition: service_started
+
   web:
     build:
       context: ./web
