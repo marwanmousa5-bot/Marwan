@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.client import get_claude_client
 from app.ai.predictive import forecast_due_maintenance
+from app.core.tenancy import TenantScope
 from app.models.ai import Recommendation
 from app.models.alert import Alert
 from app.models.driver import Driver
@@ -64,6 +65,8 @@ class Signal:
     kind: str
     title: str
     detail: str
+    #: Which kind of card this becomes. Most signals are plain Copilot cards.
+    recommendation_kind: RecommendationKind = RecommendationKind.COPILOT
     impact_minutes: int = 0
     vehicle_id: uuid.UUID | None = None
     task_id: uuid.UUID | None = None
@@ -247,7 +250,99 @@ async def gather_signals(
             )
         )
 
+    # --- active routes running into a closure or severe weather (Section 4 item 8) ---
+    signals.extend(await _reroute_signals(db, organization_id, now=moment))
+
     signals.sort(key=lambda s: s.impact_minutes, reverse=True)
+    return signals
+
+
+async def _reroute_signals(
+    db: AsyncSession, organization_id: uuid.UUID, *, now: datetime
+) -> list[Signal]:
+    """Turn detected obstructions into *proposals*, never into reroutes.
+
+    The alternative is computed here so the dispatcher sees the real extra
+    distance and time before deciding. Applying it is a separate, explicit
+    step behind the Apply button (Section 9).
+    """
+    from app.services import rerouting
+
+    scope = TenantScope(organization_id)
+    signals: list[Signal] = []
+
+    # Bounded: each proposal is an OSRM round trip, and this runs on a timer.
+    for task, route, obstruction in (
+        await rerouting.detect(db, organization_id, now=now)
+    )[:3]:
+        proposal = await rerouting.propose(
+            db, scope, task=task, route=route, obstruction=obstruction
+        )
+
+        if not proposal.routing_available:
+            signals.append(
+                Signal(
+                    kind="reroute",
+                    recommendation_kind=RecommendationKind.REROUTE,
+                    title=f"{task.title} runs through {obstruction.label}",
+                    detail=(
+                        "The routing engine is not reachable, so no alternative "
+                        "could be worked out. The route is unchanged."
+                    ),
+                    impact_minutes=obstruction.expected_delay_minutes,
+                    vehicle_id=task.vehicle_id,
+                    task_id=task.id,
+                    driver_id=task.driver_id,
+                    dedupe_key=proposal.dedupe_key,
+                    facts={
+                        "task": task.title,
+                        "obstruction": obstruction.label,
+                        "routing_available": False,
+                    },
+                )
+            )
+            continue
+
+        added_km = proposal.added_km
+        added_minutes = proposal.added_minutes
+        cost = (
+            f"about {added_km:+.1f} km and {added_minutes:+.0f} min"
+            if added_km is not None and added_minutes is not None
+            else f"{proposal.new_distance_km:.1f} km in total"
+        )
+        signals.append(
+            Signal(
+                kind="reroute",
+                recommendation_kind=RecommendationKind.REROUTE,
+                title=f"{task.title} runs through {obstruction.label}",
+                detail=(
+                    f"An alternative avoiding {obstruction.label} costs {cost}. "
+                    "The driver stays on the current route until you apply it."
+                ),
+                impact_minutes=(
+                    int(added_minutes)
+                    if added_minutes is not None
+                    else obstruction.expected_delay_minutes
+                ),
+                vehicle_id=task.vehicle_id,
+                task_id=task.id,
+                driver_id=task.driver_id,
+                dedupe_key=proposal.dedupe_key,
+                suggested_action=f"Reroute around {obstruction.label}",
+                action_payload={
+                    "op": "apply_reroute",
+                    "task_id": str(task.id),
+                    "obstruction_id": str(obstruction.obstruction_id),
+                },
+                facts={
+                    "task": task.title,
+                    "obstruction": obstruction.label,
+                    "added_km": added_km,
+                    "added_minutes": added_minutes,
+                },
+            )
+        )
+
     return signals
 
 
@@ -291,7 +386,7 @@ async def run_copilot(
         text = phrasing.get(signal.dedupe_key, {})
         recommendation = Recommendation(
             organization_id=organization_id,
-            kind=RecommendationKind.COPILOT,
+            kind=signal.recommendation_kind,
             status=RecommendationStatus.PENDING,
             rank=index,
             title=text.get("title") or signal.title,

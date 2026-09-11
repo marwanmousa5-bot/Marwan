@@ -256,3 +256,52 @@ class WeatherZoneOut(ORMModel):
     expected_delay_minutes: int
     observed_at: datetime
     expires_at: datetime | None = None
+
+
+# ---------------------------------------------------------------------------
+# Road closures - the manual input to Exception Auto-Rerouting (Section 4.8)
+# ---------------------------------------------------------------------------
+
+class RoadClosureCreate(BaseModel):
+    label: str = Field(min_length=1, max_length=200)
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+    radius_m: float = Field(default=500.0, gt=0, le=50_000)
+    active_from: datetime | None = None
+    active_until: datetime | None = None
+
+
+class RoadClosureUpdate(BaseModel):
+    label: str | None = Field(default=None, min_length=1, max_length=200)
+    radius_m: float | None = Field(default=None, gt=0, le=50_000)
+    active_from: datetime | None = None
+    active_until: datetime | None = None
+    is_active: bool | None = None
+
+
+class RoadClosureOut(ORMModel):
+    id: uuid.UUID
+    label: str
+    latitude: float
+    longitude: float
+    radius_m: float
+    active_from: datetime | None = None
+    active_until: datetime | None = None
+    is_active: bool
+    created_at: datetime
+
+
+class RerouteProposalOut(BaseModel):
+    """A computed alternative. Returned by a read-only endpoint."""
+
+    task_id: uuid.UUID
+    task_title: str
+    route_id: uuid.UUID
+    obstruction_kind: str
+    obstruction_id: uuid.UUID
+    obstruction_label: str
+    added_km: float | None = None
+    added_minutes: float | None = None
+    new_distance_km: float | None = None
+    new_eta: datetime | None = None
+    routing_available: bool

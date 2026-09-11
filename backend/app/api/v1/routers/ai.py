@@ -212,6 +212,17 @@ async def apply(
             principal=principal,
             request=request,
         )
+    elif operation == "apply_reroute":
+        from app.services import rerouting
+
+        await rerouting.apply_reroute(
+            db,
+            scope,
+            task_id=uuid.UUID(payload["task_id"]),
+            obstruction_id=uuid.UUID(payload["obstruction_id"]),
+            principal=principal,
+            request=request,
+        )
     else:
         raise ValidationError(
             "That recommendation is informational - there is nothing to apply."

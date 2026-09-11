@@ -240,6 +240,7 @@ class AuditAction(StrEnum):
     IMPERSONATION_STARTED = "impersonation_started"
     AI_ACTION_CONFIRMED = "ai_action_confirmed"
     SUSPICIOUS_LOGIN_FLAGGED = "suspicious_login_flagged"
+    ROUTE_REROUTED = "route_rerouted"
 
 
 class RecommendationKind(StrEnum):

@@ -109,6 +109,77 @@ def contains(geometry: dict[str, Any] | None, lat: float, lng: float) -> bool:
     return False
 
 
+def decode_polyline(encoded: str, precision: int = 5) -> list[tuple[float, float]]:
+    """Decode an OSRM/Google encoded polyline into ``(lat, lng)`` pairs.
+
+    OSRM hands back geometry in this format, and rerouting has to reason about
+    where a route actually goes - not just its endpoints.
+    """
+    if not encoded:
+        return []
+
+    factor = float(10**precision)
+    points: list[tuple[float, float]] = []
+    index = 0
+    lat = 0
+    lng = 0
+    length = len(encoded)
+
+    while index < length:
+        for axis in ("lat", "lng"):
+            shift = 0
+            result = 0
+            while index < length:
+                byte = ord(encoded[index]) - 63
+                index += 1
+                result |= (byte & 0x1F) << shift
+                shift += 5
+                if byte < 0x20:
+                    break
+            # The low bit is the sign, and the value is stored inverted when set.
+            delta = ~(result >> 1) if result & 1 else result >> 1
+            if axis == "lat":
+                lat += delta
+            else:
+                lng += delta
+        points.append((lat / factor, lng / factor))
+
+    return points
+
+
+def path_enters_circle(
+    path: list[tuple[float, float]],
+    center_lat: float,
+    center_lng: float,
+    radius_m: float,
+    *,
+    sample_every: int = 1,
+) -> bool:
+    """Does a decoded path pass within ``radius_m`` of a point?
+
+    Vertex sampling only: OSRM geometry is dense enough (a vertex every few
+    metres in town) that a closure radius of a few hundred metres cannot slip
+    between two consecutive vertices.
+    """
+    for index in range(0, len(path), max(1, sample_every)):
+        lat, lng = path[index]
+        if haversine_m(lat, lng, center_lat, center_lng) <= radius_m:
+            return True
+    return False
+
+
+def closest_index(
+    path: list[tuple[float, float]], lat: float, lng: float
+) -> int | None:
+    """Index of the path vertex nearest a point."""
+    if not path:
+        return None
+    return min(
+        range(len(path)),
+        key=lambda i: haversine_m(path[i][0], path[i][1], lat, lng),
+    )
+
+
 def bounding_box(
     points: list[tuple[float, float]],
 ) -> tuple[float, float, float, float] | None:

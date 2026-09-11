@@ -21,6 +21,7 @@ from app.core.deps import (
 from app.core.tenancy import TenantScope
 from app.db.session import get_db
 from app.models.enums import AuditAction, PoiCategory
+from app.models.routing import RoadClosure
 from app.models.tracking import Geofence, PointOfInterest
 from app.models.vehicle import Vehicle
 from app.schemas.common import Message
@@ -31,8 +32,12 @@ from app.schemas.tracking import (
     PoiCreate,
     PoiOut,
     PoiUpdate,
+    RerouteProposalOut,
+    RoadClosureCreate,
+    RoadClosureOut,
+    RoadClosureUpdate,
 )
-from app.services import audit, geo
+from app.services import audit, geo, rerouting
 
 router = APIRouter(tags=["map-tools"])
 
@@ -290,3 +295,157 @@ async def delete_poi(
         request=request,
     )
     return Message(detail=f"Point of interest '{name}' deleted")
+
+
+# ---------------------------------------------------------------------------
+# Road closures and Exception Auto-Rerouting (Section 4 item 8)
+# ---------------------------------------------------------------------------
+
+@router.get(
+    "/road-closures",
+    response_model=list[RoadClosureOut],
+    summary="List road closures",
+)
+async def list_road_closures(
+    include_inactive: bool = Query(default=False),
+    _: Principal = Depends(require_dashboard_user),
+    scope: TenantScope = Depends(get_tenant_scope),
+    db: AsyncSession = Depends(get_db),
+) -> list[RoadClosureOut]:
+    stmt = scope.select(RoadClosure)
+    if not include_inactive:
+        stmt = stmt.where(RoadClosure.is_active.is_(True))
+    result = await db.execute(stmt.order_by(RoadClosure.created_at.desc()))
+    return [RoadClosureOut.model_validate(c) for c in result.scalars().all()]
+
+
+@router.post(
+    "/road-closures",
+    response_model=RoadClosureOut,
+    status_code=status.HTTP_201_CREATED,
+    summary="Flag a road closure",
+)
+async def create_road_closure(
+    payload: RoadClosureCreate,
+    request: Request,
+    principal: Principal = Depends(require_dashboard_user),
+    scope: TenantScope = Depends(get_tenant_scope),
+    db: AsyncSession = Depends(get_db),
+) -> RoadClosureOut:
+    closure = RoadClosure(
+        **payload.model_dump(), created_by_user_id=principal.user_id
+    )
+    scope.assign(closure)
+    db.add(closure)
+    await db.flush()
+
+    await audit.record(
+        db,
+        action=AuditAction.CREATE,
+        principal=principal,
+        organization_id=scope.organization_id,
+        entity_type="road_closure",
+        entity_id=closure.id,
+        summary=f"Road closure '{closure.label}' flagged",
+        request=request,
+    )
+    return RoadClosureOut.model_validate(closure)
+
+
+@router.patch(
+    "/road-closures/{closure_id}",
+    response_model=RoadClosureOut,
+    summary="Update or lift a road closure",
+)
+async def update_road_closure(
+    closure_id: uuid.UUID,
+    payload: RoadClosureUpdate,
+    request: Request,
+    principal: Principal = Depends(require_dashboard_user),
+    scope: TenantScope = Depends(get_tenant_scope),
+    db: AsyncSession = Depends(get_db),
+) -> RoadClosureOut:
+    closure = await scope.get_or_404(db, RoadClosure, closure_id, label="Road closure")
+    fields = ("label", "radius_m", "active_from", "active_until", "is_active")
+    before = audit.snapshot(closure, fields)
+    for key, value in payload.model_dump(exclude_unset=True).items():
+        setattr(closure, key, value)
+    await db.flush()
+
+    await audit.record(
+        db,
+        action=AuditAction.UPDATE,
+        principal=principal,
+        organization_id=scope.organization_id,
+        entity_type="road_closure",
+        entity_id=closure.id,
+        summary=f"Road closure '{closure.label}' updated",
+        changes=audit.diff(before, audit.snapshot(closure, fields)),
+        request=request,
+    )
+    return RoadClosureOut.model_validate(closure)
+
+
+@router.delete(
+    "/road-closures/{closure_id}",
+    response_model=Message,
+    summary="Delete a road closure",
+)
+async def delete_road_closure(
+    closure_id: uuid.UUID,
+    request: Request,
+    principal: Principal = Depends(require_dashboard_user),
+    scope: TenantScope = Depends(get_tenant_scope),
+    db: AsyncSession = Depends(get_db),
+) -> Message:
+    closure = await scope.get_or_404(db, RoadClosure, closure_id, label="Road closure")
+    label = closure.label
+    await db.delete(closure)
+    await audit.record(
+        db,
+        action=AuditAction.DELETE,
+        principal=principal,
+        organization_id=scope.organization_id,
+        entity_type="road_closure",
+        entity_id=closure_id,
+        summary=f"Road closure '{label}' deleted",
+        request=request,
+    )
+    return Message(detail=f"Road closure '{label}' deleted")
+
+
+@router.get(
+    "/reroutes/proposals",
+    response_model=list[RerouteProposalOut],
+    summary="Active routes obstructed right now, with the alternative costed",
+)
+async def reroute_proposals(
+    _: Principal = Depends(require_dashboard_user),
+    scope: TenantScope = Depends(get_tenant_scope),
+    db: AsyncSession = Depends(get_db),
+) -> list[RerouteProposalOut]:
+    """Read-only. Applying one goes through the Copilot's Apply step, which
+    is the single confirmed, audited path that can move a running task onto a
+    different route (Section 9)."""
+    hits = await rerouting.detect(db, scope.organization_id)
+    proposals = []
+    for task, route, obstruction in hits[:10]:
+        proposal = await rerouting.propose(
+            db, scope, task=task, route=route, obstruction=obstruction
+        )
+        proposals.append(
+            RerouteProposalOut(
+                task_id=proposal.task_id,
+                task_title=proposal.task_title,
+                route_id=proposal.route_id,
+                obstruction_kind=obstruction.kind,
+                obstruction_id=obstruction.obstruction_id,
+                obstruction_label=obstruction.label,
+                added_km=proposal.added_km,
+                added_minutes=proposal.added_minutes,
+                new_distance_km=proposal.new_distance_km,
+                new_eta=proposal.new_eta,
+                routing_available=proposal.routing_available,
+            )
+        )
+    return proposals

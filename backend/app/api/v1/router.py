@@ -12,6 +12,7 @@ from app.api.v1.routers import (
     ai,
     alerts,
     analytics,
+    audit,
     auth,
     driver,
     drivers,
@@ -39,4 +40,5 @@ api_router.include_router(analytics.router)
 api_router.include_router(ai.router)
 api_router.include_router(tasks.router)
 api_router.include_router(driver.router)
+api_router.include_router(audit.router)
 api_router.include_router(platform_admin.router)
