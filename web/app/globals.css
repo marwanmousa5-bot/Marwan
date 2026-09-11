@@ -1,0 +1,80 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * FleetBeat control-room aesthetic: dark by default for the operations
+ * console, data-dense but calm. Alert Coral (--fb-coral) is reserved for
+ * live and critical signals only.
+ */
+:root {
+  --fb-electric: #1e90ff;
+  --fb-coral: #ff6b35;
+  --fb-ink: #121417;
+  --fb-paper: #f5f7fa;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+}
+
+@layer base {
+  html,
+  body {
+    @apply h-full;
+  }
+
+  body {
+    @apply bg-ink-900 text-ink-100 antialiased;
+    font-family: var(--font-sans);
+  }
+
+  /* Tabular figures keep dense metric columns from jittering as they tick. */
+  .fb-numeric {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer components {
+  .fb-card {
+    @apply rounded-xl border border-ink-600/70 bg-ink-800/70 shadow-lg shadow-black/20;
+  }
+
+  .fb-label {
+    @apply block text-xs font-medium uppercase tracking-wider text-ink-300;
+  }
+
+  .fb-input {
+    @apply w-full rounded-lg border border-ink-600 bg-ink-900/80 px-3 py-2.5 text-sm
+           text-ink-50 placeholder-ink-400 outline-none transition
+           focus:border-electric focus:ring-2 focus:ring-electric/30;
+  }
+
+  .fb-button {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5
+           text-sm font-semibold transition focus:outline-none
+           focus-visible:ring-2 focus-visible:ring-electric/50
+           disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .fb-button-primary {
+    @apply fb-button bg-electric text-white hover:bg-electric-600;
+  }
+
+  .fb-button-ghost {
+    @apply fb-button border border-ink-600 bg-transparent text-ink-100 hover:bg-ink-700;
+  }
+
+  .fb-button-danger {
+    @apply fb-button border border-danger/40 bg-danger/10 text-danger hover:bg-danger/20;
+  }
+
+  /* Input style for the light-chrome Platform Admin Console. */
+  .light-input {
+    @apply w-full rounded-lg border border-ink-200 bg-white px-3 py-2.5 text-sm
+           text-ink-900 placeholder-ink-300 outline-none transition
+           focus:border-electric focus:ring-2 focus:ring-electric/20;
+  }
+
+  .fb-badge {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium;
+  }
+}

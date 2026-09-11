@@ -1,0 +1,30 @@
+name: fleetbeat_driver
+description: FleetBeat driver app - tasks, trips and inspections for drivers.
+publish_to: "none"
+version: 0.1.0+1
+
+environment:
+  # Colors.withValues() requires Flutter 3.27 / Dart 3.6 or newer.
+  sdk: ">=3.6.0 <4.0.0"
+  flutter: ">=3.27.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  http: ^1.2.2
+  shared_preferences: ^2.3.2
+
+  # Wired up in Phase 3 (Section 4f): task map + route to destination.
+  # flutter_map: ^7.0.2
+  # latlong2: ^0.9.1
+  # geolocator: ^12.0.0
+  # firebase_messaging: ^15.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
