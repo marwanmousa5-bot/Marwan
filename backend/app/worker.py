@@ -69,4 +69,12 @@ celery_app.conf.beat_schedule = {
         "task": "fleetbeat.ai.recompute_driver_scores",
         "schedule": crontab(minute=5, hour="*"),
     },
+    "scan-anomalies": {
+        "task": "fleetbeat.ai.scan_anomalies",
+        "schedule": crontab(minute=25, hour="*/4"),
+    },
+    "forecast-maintenance": {
+        "task": "fleetbeat.maintenance.forecast",
+        "schedule": crontab(minute=40, hour=5),
+    },
 }

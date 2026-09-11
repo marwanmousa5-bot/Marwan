@@ -133,6 +133,95 @@ def run_fleet_copilot() -> dict[str, int]:
 
 @celery_app.task(name="fleetbeat.ai.recompute_driver_scores")
 def recompute_driver_scores() -> dict[str, int]:
-    """Phase 4: safety score, fatigue indicator and points (Sections 4g / 5.1)."""
-    logger.debug("driver scoring: not implemented until Phase 4")
-    return {"drivers": 0}
+    """Safety score, fatigue indicator and points (Sections 4g and 5 item 1).
+
+    One pass per Organization: score every driver from the shared event
+    stream, convert any unprocessed events into points, award clean-streak
+    rewards, and roll balances over at the start of a new month.
+    """
+    from app.ai import scoring
+    from app.services import rewards
+
+    async def handle(db, organization_id) -> int:
+        rolled = await rewards.reset_monthly_balances(db, organization_id)
+        scored = await scoring.score_organization_drivers(db, organization_id)
+        outcomes = await rewards.apply_pending_events(db, organization_id)
+        streaks = await rewards.award_clean_streaks(db, organization_id)
+        return len(scored) + len(outcomes) + len(streaks) + rolled
+
+    result = run_async(lambda: _for_each_organization(handle))
+    logger.info("Driver scoring pass: %s", result)
+    return result
+
+
+@celery_app.task(name="fleetbeat.ai.scan_anomalies")
+def scan_anomalies() -> dict[str, int]:
+    """Raise alerts for statistically unusual fuel and idle patterns."""
+    from app.ai import anomaly
+    from app.models.enums import AlertRuleType
+    from app.services.alerts import raise_alert
+
+    async def handle(db, organization_id) -> int:
+        found = [
+            *await anomaly.detect_fuel_anomalies(db, organization_id),
+            *await anomaly.detect_idle_anomalies(db, organization_id),
+        ]
+        raised = 0
+        for item in found:
+            alert = await raise_alert(
+                db,
+                organization_id=organization_id,
+                rule_type=AlertRuleType.ANOMALY,
+                title=f"Unusual {item.kind.replace('_', ' ')}: {item.vehicle_name}",
+                message=item.summary,
+                vehicle_id=item.vehicle_id,
+                subject_type=item.kind,
+                subject_id=item.subject_id,
+                # Keyed to the sample, so one odd fill-up alerts once.
+                dedupe_key=f"anomaly:{item.kind}:{item.subject_id}",
+                context={"z_score": item.z_score, "mean": item.mean},
+            )
+            if alert is not None:
+                raised += 1
+        return raised
+
+    result = run_async(lambda: _for_each_organization(handle))
+    logger.info("Anomaly scan: %s", result)
+    return result
+
+
+@celery_app.task(name="fleetbeat.maintenance.forecast")
+def forecast_maintenance() -> dict[str, int]:
+    """Predictive maintenance: alert on services projected to fall due soon."""
+    from app.ai import predictive
+    from app.models.enums import AlertRuleType, AlertSeverity
+    from app.services.alerts import raise_alert
+
+    async def handle(db, organization_id) -> int:
+        forecasts = await predictive.forecast_due_maintenance(db, organization_id)
+        raised = 0
+        for forecast in forecasts:
+            alert = await raise_alert(
+                db,
+                organization_id=organization_id,
+                rule_type=AlertRuleType.MAINTENANCE_DUE,
+                severity=(
+                    AlertSeverity.WARNING if forecast.days_away <= 7 else AlertSeverity.INFO
+                ),
+                title=f"Forecast: {forecast.schedule_name} due for {forecast.vehicle_name}",
+                message=forecast.summary,
+                vehicle_id=forecast.vehicle_id,
+                subject_type="maintenance_schedule",
+                subject_id=forecast.schedule_id,
+                dedupe_key=(
+                    f"forecast:{forecast.schedule_id}:{forecast.predicted_due_on}"
+                ),
+                context={"days_away": forecast.days_away, "basis": forecast.basis},
+            )
+            if alert is not None:
+                raised += 1
+        return raised
+
+    result = run_async(lambda: _for_each_organization(handle))
+    logger.info("Maintenance forecast: %s", result)
+    return result

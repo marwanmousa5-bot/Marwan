@@ -10,6 +10,7 @@ from fastapi import APIRouter
 
 from app.api.v1.routers import (
     alerts,
+    analytics,
     auth,
     driver,
     drivers,
@@ -33,6 +34,7 @@ api_router.include_router(tracking.router)
 api_router.include_router(maps.router)
 api_router.include_router(alerts.router)
 api_router.include_router(operations.router)
+api_router.include_router(analytics.router)
 api_router.include_router(tasks.router)
 api_router.include_router(driver.router)
 api_router.include_router(platform_admin.router)
