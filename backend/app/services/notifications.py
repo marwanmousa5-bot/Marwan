@@ -58,7 +58,25 @@ class NullPushService(NotificationService):
         return False
 
 
+class RecordingNotificationService(NotificationService):
+    """Keeps what it was asked to send. Used by tests and by local demos."""
+
+    def __init__(self) -> None:
+        self.sent: list[Notification] = []
+
+    async def send(self, notification: Notification) -> bool:
+        self.sent.append(notification)
+        logger.debug(
+            "[recorded:%s] to=%s subject=%s",
+            notification.channel,
+            notification.recipient,
+            notification.subject,
+        )
+        return True
+
+
 _service: NotificationService = ConsoleNotificationService()
+_push_service: NotificationService = ConsoleNotificationService()
 
 
 def get_notification_service() -> NotificationService:
@@ -69,3 +87,18 @@ def set_notification_service(service: NotificationService) -> None:
     """Swap the implementation (used by tests and by a future email provider)."""
     global _service
     _service = service
+
+
+def get_push_service() -> NotificationService:
+    """Driver push notifications.
+
+    Console-backed for MVP: no push provider is integrated in this phase, so
+    dispatch logs what it would have sent. Wiring FCM/APNs later means
+    replacing this one object.
+    """
+    return _push_service
+
+
+def set_push_service(service: NotificationService) -> None:
+    global _push_service
+    _push_service = service
