@@ -62,6 +62,15 @@ the platform super admin.
 | API docs (Swagger) | http://localhost:8000/docs |
 | OpenAPI schema | http://localhost:8000/api/v1/openapi.json |
 
+### Seeing live data
+
+Vehicles only produce GPS data once FleetBeat fits them a device. After
+creating a customer and adding a vehicle, go to **Platform Admin → Devices**,
+add a device to inventory, and fit it to that vehicle. The `simulator` service
+picks it up within 20 seconds and the vehicle starts moving on the customer's
+Live Tracking map. Vehicles without a device show as **Not Tracked** — that
+distinction is deliberate and visible to the customer.
+
 ### First login
 
 The super-admin account (`Marwan.mousa5@gmail.com`) is seeded on first
