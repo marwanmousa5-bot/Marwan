@@ -472,3 +472,128 @@ export interface Incident {
   created_at: string;
   photo_urls: string[];
 }
+
+// ---------------------------------------------------------------------------
+// Phase 4: analytics, sustainability and rewards
+// ---------------------------------------------------------------------------
+
+export interface FleetKpis {
+  total_vehicles: number;
+  active_vehicles: number;
+  tracked_vehicles: number;
+  total_drivers: number;
+  trips: number;
+  distance_km: number;
+  driving_hours: number;
+  utilisation_percent: number;
+  total_cost: number;
+  cost_per_km: number | null;
+  fuel_cost: number;
+  maintenance_cost: number;
+  co2_kg: number;
+  active_alerts: number;
+  violations: number;
+  average_safety_score: number;
+}
+
+export interface TrendPoint {
+  period: string;
+  distance_km: number;
+  cost: number;
+  co2_kg: number;
+  violations: number;
+}
+
+export interface EvCandidate {
+  vehicle_id: string;
+  vehicle_name: string;
+  license_plate: string;
+  days_observed: number;
+  average_daily_km: number;
+  max_daily_km: number;
+  assumed_range_km: number;
+  annual_fuel_cost: number;
+  rationale: string;
+}
+
+export interface AssetSummary {
+  vehicle_id: string;
+  vehicle_name: string;
+  purchase_value: number | null;
+  age_years: number | null;
+  annual_depreciation: number | null;
+  book_value: number | null;
+  odometer_km: number;
+  replacement_recommended: boolean;
+  reasons: string[];
+}
+
+export interface AnalyticsAnomaly {
+  kind: string;
+  vehicle_id: string;
+  vehicle_name: string;
+  value: number;
+  mean: number;
+  z_score: number;
+  summary: string;
+  observed_at: string | null;
+}
+
+export interface MaintenanceForecast {
+  vehicle_id: string;
+  vehicle_name: string;
+  schedule_id: string;
+  schedule_name: string;
+  predicted_due_on: string;
+  days_away: number;
+  daily_km: number;
+  remaining_km: number | null;
+  basis: string;
+  summary: string;
+}
+
+export interface LeaderboardRow {
+  rank: number;
+  driver_id: string;
+  driver_name: string;
+  points_balance: number;
+  safety_score: number;
+  fatigue_risk_level: string;
+  badges: string[];
+}
+
+export interface BadgeDefinition {
+  code: string;
+  name: string;
+  description: string;
+}
+
+export interface Leaderboard {
+  period: string;
+  rows: LeaderboardRow[];
+  badge_catalogue: BadgeDefinition[];
+  visible_to_drivers: boolean;
+}
+
+export interface DriverScore {
+  driver_id: string;
+  driver_name: string;
+  safety_score: number;
+  score_band: string;
+  provisional: boolean;
+  distance_km: number;
+  violations: Record<string, number>;
+  fatigue_risk_level: string;
+  fatigue_reasons: string[];
+  points_balance: number;
+}
+
+export interface PointsLedgerEntry {
+  id: string;
+  driver_id: string;
+  delta: number;
+  balance_after: number;
+  reason: string;
+  period_month: string;
+  created_at: string;
+}

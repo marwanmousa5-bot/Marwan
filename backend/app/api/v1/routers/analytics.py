@@ -194,8 +194,11 @@ async def maintenance_forecast(
 # Driver scores and rewards (Sections 4g and 5 item 1)
 # ---------------------------------------------------------------------------
 
+# Deliberately not "/drivers/scores": the drivers router already owns
+# "/drivers/{driver_id}", and a literal segment registered after a path
+# parameter is shadowed by it - FastAPI would try to parse "scores" as a UUID.
 @router.get(
-    "/drivers/scores",
+    "/analytics/driver-scores",
     response_model=list[DriverScoreOut],
     summary="Safety scores and fatigue risk per driver",
 )

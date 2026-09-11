@@ -88,7 +88,8 @@ class SimulatedLocationProvider(LocationProvider):
         self,
         *,
         tick_seconds: float = 3.0,
-        event_probability: float = 0.02,
+        # See Settings.simulation_event_probability for how this is derived.
+        event_probability: float = 0.0015,
         speeding_threshold_kph: float = 110.0,
         seed: int | None = None,
     ) -> None:

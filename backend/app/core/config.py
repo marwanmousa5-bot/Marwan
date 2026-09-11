@@ -62,7 +62,13 @@ class Settings(BaseSettings):
     # --- Simulation engine (Section 6) ---
     simulation_enabled: bool = True
     simulation_tick_seconds: float = 3.0
-    simulation_event_probability: float = 0.02
+    #: Chance per vehicle per tick of a harsh-braking / acceleration /
+    #: speeding event. Calibrated, not guessed: at a 3s tick and ~50 km/h a
+    #: vehicle takes ~2,400 ticks to cover 100 km, so this yields roughly
+    #: 3.6 events per 100 km - a plausible rate for a mixed fleet. Set it
+    #: much higher and every driver's safety score floors at zero within an
+    #: hour, which makes the whole scoring feature look broken.
+    simulation_event_probability: float = 0.0015
 
     # --- Security hardening ---
     failed_login_lockout_threshold: int = 5

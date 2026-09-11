@@ -28,11 +28,8 @@ const NAV = [
   },
   { href: "/dashboard/fuel", label: strings.nav.fuel, phase: null },
   { href: "/dashboard/compliance", label: strings.nav.compliance, phase: null },
-  {
-    href: "/dashboard/analytics",
-    label: strings.nav.analytics,
-    phase: "Phase 4",
-  },
+  { href: "/dashboard/analytics", label: strings.nav.analytics, phase: null },
+  { href: "/dashboard/safety", label: strings.nav.safety, phase: null },
 ] as const;
 
 export default function DashboardLayout({

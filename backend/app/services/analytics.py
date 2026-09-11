@@ -35,6 +35,8 @@ EV_RANGE_SAFETY_FACTOR = 0.7
 ASSUMED_EV_RANGE_KM = 250.0
 #: Days of history needed before an electrification call is worth making.
 EV_MIN_HISTORY_DAYS = 21
+#: Distance below which a per-km rate is noise rather than a figure.
+MIN_DISTANCE_FOR_RATE_KM = 100.0
 
 
 def utcnow() -> datetime:
@@ -64,7 +66,14 @@ class VehicleCost:
 
     @property
     def cost_per_km(self) -> float | None:
-        if self.distance_km <= 0:
+        """Cost per km, or None when the distance is too small to divide by.
+
+        A vehicle with 25 km of recorded driving and a serviced gearbox
+        produces a per-km figure in the tens - arithmetically correct and
+        completely useless. Below the floor the answer is "not enough
+        distance", not a number.
+        """
+        if self.distance_km < MIN_DISTANCE_FOR_RATE_KM:
             return None
         return round(self.total_cost / self.distance_km, 3)
 
@@ -333,7 +342,11 @@ async def fleet_kpis(
             else 0.0
         ),
         total_cost=round(total_cost, 2),
-        cost_per_km=round(total_cost / distance_km, 3) if distance_km > 0 else None,
+        cost_per_km=(
+            round(total_cost / distance_km, 3)
+            if distance_km >= MIN_DISTANCE_FOR_RATE_KM
+            else None
+        ),
         fuel_cost=round(float(fuel_cost), 2),
         maintenance_cost=round(float(maintenance_cost), 2),
         co2_kg=round(float(co2), 1),

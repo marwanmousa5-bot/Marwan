@@ -44,9 +44,12 @@ VIOLATION_WEIGHTS: dict[str, float] = {
 #: visibly separated, rather than everyone clustering near 100.
 ZERO_SCORE_RATE = 12.0
 
-#: Below this distance the rate is too noisy to score fairly - a single event
-#: on a 2 km trip should not read as a catastrophic driver.
-MIN_DISTANCE_KM = 25.0
+#: Below this distance a per-100 km rate is too noisy to be fair. Two events
+#: over 25 km reads as a catastrophic driver; over 250 km - a few days of real
+#: work - the same two events read as what they are. Until a driver clears
+#: this, the score stays provisional rather than being invented from a handful
+#: of samples.
+MIN_DISTANCE_KM = 250.0
 
 
 def utcnow() -> datetime:

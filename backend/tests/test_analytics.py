@@ -41,11 +41,19 @@ def test_score_normalises_by_distance() -> None:
 
 
 def test_score_stays_provisional_on_thin_data() -> None:
-    result = compute_safety_score(
-        driver_id=uuid.uuid4(), violations={"speeding": 3}, distance_km=4
+    """Two events over a short distance must not read as a terrible driver."""
+    thin = compute_safety_score(
+        driver_id=uuid.uuid4(), violations={"speeding": 3}, distance_km=30
     )
-    assert result.provisional is True
-    assert result.score == 100.0
+    assert thin.provisional is True
+    assert thin.score == 100.0
+
+    # The same event rate over a meaningful distance is scored for real.
+    real = compute_safety_score(
+        driver_id=uuid.uuid4(), violations={"speeding": 30}, distance_km=300
+    )
+    assert real.provisional is False
+    assert real.score < 50
 
 
 def test_score_bands_separate_drivers() -> None:
@@ -564,6 +572,55 @@ async def test_maintenance_forecast_projects_from_recent_usage(
     assert rows[0]["remaining_km"] == pytest.approx(2000.0, abs=1.0)
     assert 15 <= rows[0]["days_away"] <= 25
     assert "km/day" in rows[0]["basis"]
+
+
+@pytest.mark.asyncio
+async def test_cost_per_km_is_withheld_below_a_usable_distance(
+    client: AsyncClient, db: AsyncSession, fleet
+) -> None:
+    """25 km and a gearbox rebuild is not a per-km figure worth showing."""
+    now = datetime.now(UTC)
+    db.add(
+        Trip(
+            organization_id=fleet["org"].id,
+            vehicle_id=fleet["vehicle"].id,
+            driver_id=fleet["dee"].id,
+            status=TripStatus.COMPLETED,
+            started_at=now - timedelta(hours=2),
+            distance_km=25.0,
+        )
+    )
+    await db.commit()
+    await client.post(
+        "/api/v1/fuel/logs",
+        headers=auth(fleet["admin"]),
+        json={
+            "vehicle_id": str(fleet["vehicle"].id),
+            "fuel_type": "diesel",
+            "quantity": 60,
+            "total_cost": 480,
+            "filled_at": now.isoformat(),
+        },
+    )
+
+    thin = await client.get("/api/v1/analytics/costs", headers=auth(fleet["admin"]))
+    assert thin.json()[0]["total_cost"] == 480
+    assert thin.json()[0]["cost_per_km"] is None
+
+    db.add(
+        Trip(
+            organization_id=fleet["org"].id,
+            vehicle_id=fleet["vehicle"].id,
+            driver_id=fleet["dee"].id,
+            status=TripStatus.COMPLETED,
+            started_at=now - timedelta(hours=6),
+            distance_km=575.0,
+        )
+    )
+    await db.commit()
+
+    usable = await client.get("/api/v1/analytics/costs", headers=auth(fleet["admin"]))
+    assert usable.json()[0]["cost_per_km"] == pytest.approx(0.8, abs=0.01)
 
 
 @pytest.mark.asyncio

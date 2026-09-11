@@ -187,3 +187,42 @@ async def test_repeated_failures_lock_the_account(
     )
     assert response.status_code == 401
     assert "locked" in response.json()["detail"].lower()
+
+
+def test_no_route_is_shadowed_by_an_earlier_one() -> None:
+    """Guard against a whole class of routing bug.
+
+    ``/drivers/{driver_id}`` registered before ``/drivers/scores`` silently
+    swallows the literal route: the request reaches the parameterised handler
+    and fails trying to parse "scores" as a UUID. Rather than reasoning about
+    path shapes, this asks the real routing table the real question - would an
+    earlier route match this route's own path, for a method they share?
+    """
+    from starlette.routing import Route
+
+    from app.main import app
+
+    routes = [
+        route
+        for route in app.routes
+        if isinstance(route, Route) and getattr(route, "path_regex", None)
+    ]
+
+    shadowed: list[tuple[str, str, str]] = []
+    for index, route in enumerate(routes):
+        # Only a fully literal path can be swallowed by an earlier pattern.
+        if "{" in route.path:
+            continue
+        for earlier in routes[:index]:
+            if earlier.path == route.path or "{" not in earlier.path:
+                continue
+            if not earlier.path_regex.match(route.path):
+                continue
+            overlap = (earlier.methods or set()) & (route.methods or set())
+            if overlap:
+                shadowed.append((route.path, earlier.path, ", ".join(sorted(overlap))))
+
+    assert shadowed == [], (
+        "These routes are unreachable - an earlier parameterised route matches "
+        f"them first: {shadowed}"
+    )
