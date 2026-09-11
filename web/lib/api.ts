@@ -142,6 +142,41 @@ export const api = {
 };
 
 /**
+ * Download an authenticated file (CSV/PDF exports).
+ *
+ * Exports are bearer-authenticated like every other endpoint, so a plain
+ * `<a href>` would come back 401. We fetch the bytes, hand the browser an
+ * object URL, and revoke it straight after the click.
+ */
+export async function downloadFile(path: string, filename: string): Promise<void> {
+  const tokens = tokenStore.read();
+  const headers: Record<string, string> = {};
+  if (tokens) headers.Authorization = `Bearer ${tokens.access_token}`;
+
+  let response = await fetch(`${API_BASE_URL}${path}`, { headers, cache: "no-store" });
+  if (response.status === 401 && (await refreshTokens())) {
+    const retryTokens = tokenStore.read();
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      headers: retryTokens
+        ? { Authorization: `Bearer ${retryTokens.access_token}` }
+        : {},
+      cache: "no-store",
+    });
+  }
+  if (!response.ok) throw await parseError(response);
+
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+/**
  * WebSocket URL for the live feed.
  *
  * The access token travels as a query parameter because browsers cannot set

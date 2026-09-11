@@ -16,7 +16,7 @@ import sqlalchemy as sa
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.ai import copilot
+from app.ai import copilot, reports
 from app.ai.client import ClaudeClient, LLMResponse, get_claude_client, set_claude_client
 from app.core.tenancy import TenantScope
 from app.models.ai import Recommendation
@@ -750,3 +750,117 @@ def test_csv_escapes_and_blanks_correctly() -> None:
     assert lines[0] == "Vehicle,Note"
     assert lines[1] == '"Van, 01",'
     assert '"He said ""go"""' in lines[2]
+
+
+@pytest.mark.asyncio
+async def test_offline_routing_can_still_reach_the_action_and_still_gates_it(
+    client: AsyncClient, db: AsyncSession, fleet, offline_claude
+) -> None:
+    """No API key must not put the one mutating capability out of reach.
+
+    It must also not loosen the gate: the offline route produces a proposal
+    exactly like the model route does, and writes nothing (Section 9).
+    """
+    vehicle = fleet["vehicle"]
+    vehicle.status = VehicleStatus.IN_MAINTENANCE
+    task = (await db.execute(sa.select(Task))).scalar_one()
+    task.vehicle_id = vehicle.id
+    task.status = TaskStatus.ASSIGNED
+    await db.commit()
+
+    response = await client.post(
+        "/api/v1/assistant/ask",
+        headers=auth(fleet["admin"]),
+        json={"question": "cancel tasks for vehicles in maintenance"},
+    )
+    body = response.json()
+    assert body["capability"] == "cancel_tasks_for_vehicles_in_maintenance"
+    assert body["kind"] == "action"
+    assert body["pending_action"] is not None
+
+    # Nothing has been written by asking.
+    await db.refresh(task)
+    assert task.status == TaskStatus.ASSIGNED
+
+
+@pytest.mark.asyncio
+async def test_recommendation_ranks_stay_unique_across_passes(
+    client: AsyncClient, db: AsyncSession, fleet, offline_claude
+) -> None:
+    """A second pass must re-rank the cards already on screen, not collide.
+
+    Regression: rank was the index within one pass, so when a bigger signal
+    arrived later it took rank 0 while the surviving card from the earlier
+    pass - now the second-biggest - kept rank 0 as well.
+    """
+    now = datetime.now(UTC)
+    first_task = (await db.execute(sa.select(Task))).scalar_one()
+    first_task.due_at = now + timedelta(minutes=10)
+    first_task.eta = now + timedelta(minutes=30)  # 20 minutes over
+    await db.commit()
+
+    await client.post("/api/v1/copilot/run", headers=auth(fleet["admin"]))
+
+    # A worse delay turns up after the first pass, so the ordering flips.
+    db.add(
+        Task(
+            organization_id=fleet["org"].id,
+            title="Depot run",
+            driver_id=fleet["driver"].id,
+            vehicle_id=fleet["vehicle"].id,
+            destination_latitude=52.37,
+            destination_longitude=4.90,
+            status=TaskStatus.ASSIGNED,
+            due_at=now + timedelta(minutes=10),
+            eta=now + timedelta(minutes=100),  # 90 minutes over
+        )
+    )
+    await db.commit()
+
+    await client.post("/api/v1/copilot/run", headers=auth(fleet["admin"]))
+    cards = (
+        await client.get("/api/v1/copilot/recommendations", headers=auth(fleet["admin"]))
+    ).json()
+
+    titles = [card["title"] for card in cards]
+    assert len(cards) == 2, titles
+    ranks = [card["rank"] for card in cards]
+    assert len(ranks) == len(set(ranks)), f"ranks collided: {list(zip(titles, ranks, strict=True))}"
+    # The worse delay must now sort first.
+    assert "Depot run" in titles[0]
+
+
+def test_a_period_with_no_cost_records_says_so_rather_than_reporting_zero() -> None:
+    """"Total cost 0.00" reads as a claim about spending. It is not one."""
+    metrics = {
+        "period": {"from": "2026-09-04", "to": "2026-09-11"},
+        "distance_km": 4051.0,
+        "trips": 38,
+        "total_cost": 0.0,
+        "cost_per_km": None,
+        "fuel_cost": 0.0,
+        "maintenance_cost": 0.0,
+        "utilisation_percent": 86.0,
+        "co2_kg": 0.0,
+        "violations": 3,
+        "average_safety_score": 81.0,
+        "active_alerts": 12,
+        "previous_period": {"distance_km": 3900.0, "violations": 4},
+    }
+    text = reports._offline_report(metrics)
+    assert "No fuel or maintenance costs were recorded" in text
+    assert "0.00" not in text
+    assert "cannot be estimated" in text
+
+    priced = reports._offline_report(
+        {
+            **metrics,
+            "total_cost": 3057.18,
+            "cost_per_km": 0.21,
+            "fuel_cost": 1500.0,
+            "maintenance_cost": 1557.18,
+            "co2_kg": 1042.0,
+        }
+    )
+    assert "Total cost was 3,057.18 (0.210 per km)" in priced
+    assert "and the fleet emitted 1,042 kg" in priced

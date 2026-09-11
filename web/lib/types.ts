@@ -597,3 +597,82 @@ export interface PointsLedgerEntry {
   period_month: string;
   created_at: string;
 }
+
+// --- Phase 5: assistant, copilot, reports -----------------------------------
+
+/**
+ * An action the assistant has *proposed*. Nothing has changed until this
+ * exact object is sent back to /assistant/confirm (Section 9).
+ */
+export interface PendingAction {
+  capability: string;
+  parameters: Record<string, unknown>;
+  affected_count: number;
+  requested_by: string;
+  expires_at: string;
+}
+
+export interface AssistantReply {
+  answer: string;
+  capability: string;
+  kind: string;
+  data: Record<string, unknown>;
+  pending_action: PendingAction | null;
+  offline: boolean;
+}
+
+export interface AssistantActionResult {
+  capability: string;
+  applied_count: number;
+  tasks: string[];
+  message: string;
+}
+
+export type RecommendationKind =
+  | "copilot"
+  | "maintenance_window"
+  | "reroute"
+  | "ev_transition"
+  | "anomaly";
+
+export type RecommendationStatus = "pending" | "dismissed" | "applied" | "expired";
+
+export interface Recommendation {
+  id: string;
+  kind: RecommendationKind;
+  status: RecommendationStatus;
+  rank: number;
+  title: string;
+  summary: string;
+  suggested_action: string | null;
+  estimated_benefit: string | null;
+  action_payload: Record<string, unknown> | null;
+  signals: Record<string, unknown> | null;
+  vehicle_id: string | null;
+  driver_id: string | null;
+  task_id: string | null;
+  created_at: string;
+}
+
+export interface MaintenanceProposal {
+  vehicle_id: string;
+  vehicle_name: string;
+  schedule_id: string;
+  schedule_name: string;
+  proposed_date: string;
+  rationale: string;
+  tasks_that_day: number;
+  auto_booked: boolean;
+  work_order_id: string | null;
+}
+
+export interface ReportSummary {
+  id: string;
+  period_type: string;
+  period_start: string;
+  period_end: string;
+  summary_text: string;
+  metrics: Record<string, number | string> | null;
+  generated_by: string;
+  created_at: string;
+}

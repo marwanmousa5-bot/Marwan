@@ -110,22 +110,41 @@ def _offline_report(metrics: dict) -> str:
         direction = "up" if change >= 0 else "down"
         return f"{direction} {abs(change):.0f}%{unit} on the previous period"
 
+    # A zero here almost always means "nothing was logged in this window",
+    # not "this fleet ran for free" - say which, or the report reads as a
+    # claim about spending that the data does not support.
+    if metrics["total_cost"] > 0:
+        cost_sentence = (
+            f"Total cost was {metrics['total_cost']:,.2f}"
+            + (
+                f" ({metrics['cost_per_km']:.3f} per km)"
+                if metrics["cost_per_km"] is not None
+                else ""
+            )
+            + f", of which {metrics['fuel_cost']:,.2f} was fuel and "
+            f"{metrics['maintenance_cost']:,.2f} maintenance. "
+        )
+    else:
+        cost_sentence = (
+            "No fuel or maintenance costs were recorded in this period, so "
+            "there is no cost per km to report. "
+        )
+
+    co2_clause = (
+        f"the fleet emitted {metrics['co2_kg']:,.0f} kg of CO2"
+        if metrics["co2_kg"] > 0
+        else "emissions cannot be estimated without fuel or energy records"
+    )
+
     return (
         f"Between {metrics['period']['from']} and {metrics['period']['to']} the "
         f"fleet covered {metrics['distance_km']:,.0f} km over "
         f"{metrics['trips']} trips - "
         f"{delta(metrics['distance_km'], previous['distance_km'])}. "
-        f"Total cost was {metrics['total_cost']:,.2f}"
-        + (
-            f" ({metrics['cost_per_km']:.3f} per km)"
-            if metrics["cost_per_km"] is not None
-            else ""
-        )
-        + f", of which {metrics['fuel_cost']:,.2f} was fuel and "
-        f"{metrics['maintenance_cost']:,.2f} maintenance. "
-        f"Vehicle utilisation was {metrics['utilisation_percent']:.0f}%, and the "
-        f"fleet emitted {metrics['co2_kg']:,.0f} kg of CO2. "
-        f"There were {metrics['violations']} driving violations "
+        + cost_sentence
+        + f"Vehicle utilisation was {metrics['utilisation_percent']:.0f}%, and "
+        + co2_clause
+        + f". There were {metrics['violations']} driving violations "
         f"({delta(metrics['violations'], previous['violations'])}), with an "
         f"average driver safety score of {metrics['average_safety_score']:.0f} "
         f"and {metrics['active_alerts']} alerts still open."

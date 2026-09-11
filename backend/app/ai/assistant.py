@@ -213,6 +213,14 @@ async def _classify(organization_id: uuid.UUID, question: str) -> dict[str, Any]
 def _keyword_intent(question: str) -> dict[str, Any]:
     text = question.lower()
     rules: list[tuple[tuple[str, ...], str]] = [
+        # The action goes first: without it the one mutating capability would
+        # be unreachable whenever no model is configured. Routing here is
+        # still safe - it produces a proposal, and the confirm endpoint is the
+        # only thing that writes.
+        (
+            ("cancel task", "cancel the task", "cancel open task", "cancel all task"),
+            "cancel_tasks_for_vehicles_in_maintenance",
+        ),
         (("cost the most", "most expensive", "priciest"), "most_expensive_vehicle"),
         (("cost", "spend", "spent", "budget"), "fleet_cost"),
         (("alert", "alarm", "warning"), "active_alerts"),

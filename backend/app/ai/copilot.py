@@ -267,17 +267,25 @@ async def run_copilot(
     phrasing = await _phrase(organization_id, signals)
 
     created: list[Recommendation] = []
+    ranked_keys: list[str] = []
     for index, signal in enumerate(signals[:5]):
-        existing = await db.execute(
-            sa.select(Recommendation.id)
-            .where(
-                Recommendation.organization_id == organization_id,
-                Recommendation.dedupe_key == signal.dedupe_key,
-                Recommendation.status == RecommendationStatus.PENDING,
+        existing = (
+            await db.execute(
+                sa.select(Recommendation)
+                .where(
+                    Recommendation.organization_id == organization_id,
+                    Recommendation.dedupe_key == signal.dedupe_key,
+                    Recommendation.status == RecommendationStatus.PENDING,
+                )
+                .limit(1)
             )
-            .limit(1)
-        )
-        if existing.scalar_one_or_none() is not None:
+        ).scalar_one_or_none()
+        ranked_keys.append(signal.dedupe_key)
+        if existing is not None:
+            # The card is already on screen. Re-rank it against this pass -
+            # skipping it outright would leave a stale rank colliding with a
+            # newly created card.
+            existing.rank = index
             continue
 
         text = phrasing.get(signal.dedupe_key, {})
@@ -302,6 +310,23 @@ async def run_copilot(
         )
         db.add(recommendation)
         created.append(recommendation)
+
+    # Cards whose signal has gone quiet stay until their TTL, but they sort
+    # below everything the fleet is doing right now, and they never share a
+    # rank with a live card.
+    stale = (
+        await db.execute(
+            sa.select(Recommendation)
+            .where(
+                Recommendation.organization_id == organization_id,
+                Recommendation.status == RecommendationStatus.PENDING,
+                Recommendation.dedupe_key.not_in(ranked_keys) if ranked_keys else sa.true(),
+            )
+            .order_by(Recommendation.created_at.desc())
+        )
+    ).scalars().all()
+    for offset, recommendation in enumerate(stale):
+        recommendation.rank = len(ranked_keys) + offset
 
     await db.flush()
     return created

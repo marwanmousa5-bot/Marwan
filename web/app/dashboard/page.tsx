@@ -29,6 +29,7 @@ import type {
   WeatherZone,
 } from "@/lib/types";
 import type { DrawMode, DrawnGeometry, LayerVisibility } from "@/components/map/FleetMap";
+import { CopilotPanel } from "@/components/ai/CopilotPanel";
 import { LayerControl } from "@/components/LayerControl";
 import { StatusDot, statusLabel } from "@/components/StatusDot";
 
@@ -77,6 +78,9 @@ export default function LiveTrackingPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [alertsOpen, setAlertsOpen] = useState(true);
+  // The right rail carries both the alert feed and the Copilot (Section 4e);
+  // they compete for the same attention, so they share one column as tabs.
+  const [rail, setRail] = useState<"alerts" | "copilot">("alerts");
   const [drawMode, setDrawMode] = useState<DrawMode>("none");
   const [poiMode, setPoiMode] = useState(false);
   const [layers, setLayers] = useState<LayerVisibility>({
@@ -475,22 +479,51 @@ export default function LiveTrackingPage() {
           <div className="flex items-center justify-between border-b border-ink-700 px-3 py-2.5">
             <button
               onClick={() => setAlertsOpen((open) => !open)}
-              aria-label={alertsOpen ? "Collapse alerts" : "Expand alerts"}
+              aria-label={alertsOpen ? "Collapse right panel" : "Expand right panel"}
               className="rounded p-1 text-ink-300 hover:bg-ink-700 hover:text-white"
             >
               {alertsOpen ? "»" : "«"}
             </button>
             {alertsOpen && (
-              <span className="flex items-center gap-2 text-sm font-semibold text-white">
-                {strings.live.alertsFeed}
-                {alerts.length > 0 && (
-                  <span className="fb-badge bg-coral/15 text-coral">{alerts.length}</span>
-                )}
-              </span>
+              <div role="tablist" className="flex gap-1">
+                <button
+                  role="tab"
+                  aria-selected={rail === "alerts"}
+                  onClick={() => setRail("alerts")}
+                  className={`flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium transition ${
+                    rail === "alerts"
+                      ? "bg-ink-700 text-white"
+                      : "text-ink-400 hover:text-ink-200"
+                  }`}
+                >
+                  {strings.live.alertsFeed}
+                  {alerts.length > 0 && (
+                    <span className="fb-badge bg-coral/15 text-coral">
+                      {alerts.length}
+                    </span>
+                  )}
+                </button>
+                <button
+                  role="tab"
+                  aria-selected={rail === "copilot"}
+                  onClick={() => setRail("copilot")}
+                  className={`rounded px-2 py-1 text-xs font-medium transition ${
+                    rail === "copilot"
+                      ? "bg-ink-700 text-white"
+                      : "text-ink-400 hover:text-ink-200"
+                  }`}
+                >
+                  {strings.copilot.title}
+                </button>
+              </div>
             )}
           </div>
 
-          {alertsOpen && (
+          {alertsOpen && rail === "copilot" && (
+            <CopilotPanel onFocusVehicle={(id) => setSelectedId(id)} />
+          )}
+
+          {alertsOpen && rail === "alerts" && (
             <ul className="min-h-0 flex-1 divide-y divide-ink-700/60 overflow-y-auto">
               {alerts.length === 0 ? (
                 <li className="px-3 py-4 text-xs text-ink-400">

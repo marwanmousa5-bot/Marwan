@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 
 import { useRequireRole, useSession } from "@/lib/session";
 import { strings } from "@/lib/strings";
+import { AssistantPanel } from "@/components/ai/AssistantPanel";
 import { Logo } from "@/components/Logo";
 import { PulseLoader } from "@/components/PulseLoader";
 
@@ -30,6 +31,7 @@ const NAV = [
   { href: "/dashboard/compliance", label: strings.nav.compliance, phase: null },
   { href: "/dashboard/analytics", label: strings.nav.analytics, phase: null },
   { href: "/dashboard/safety", label: strings.nav.safety, phase: null },
+  { href: "/dashboard/reports", label: strings.nav.reports, phase: null },
 ] as const;
 
 export default function DashboardLayout({
@@ -109,6 +111,9 @@ export default function DashboardLayout({
 
         <main className="flex-1 overflow-x-hidden p-4 md:p-6">{children}</main>
       </div>
+
+      {/* Reachable from every console screen, docked so it never covers the map. */}
+      <AssistantPanel />
     </div>
   );
 }
