@@ -53,6 +53,10 @@ class Settings(BaseSettings):
     superadmin_name: str = "FleetBeat Platform Admin"
     superadmin_initial_password: str | None = None
 
+    #: Password for the demo tenant's admin (`python -m app.seed_demo`).
+    #: Unset means one is generated and printed once, like the super admin's.
+    demo_admin_password: str | None = None
+
     # --- External services ---
     osrm_base_url: str = "http://osrm:5000"
     open_meteo_base_url: str = "https://api.open-meteo.com/v1"

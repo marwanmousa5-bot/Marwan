@@ -501,3 +501,44 @@ async def test_trip_playback_is_tenant_scoped(
         f"/api/v1/trips/{trip.id}/playback", headers=auth(token)
     )
     assert response.status_code == 404
+
+
+def test_the_feed_can_be_replayed_from_a_point_in_the_past() -> None:
+    """Backfilling demo history must actually produce movement.
+
+    Regression: a newly spawned vehicle staggered its first departure against
+    the wall clock, so a replay driven from an hour ago sat inside that dwell
+    window on every tick and the whole fleet stayed parked - silently, since
+    the provider still emitted a position for each stationary vehicle.
+    """
+    provider = SimulatedLocationProvider(tick_seconds=5.0, event_probability=0.0, seed=7)
+    org_id, vehicle_id = uuid.uuid4(), uuid.uuid4()
+
+    start = datetime.now(UTC) - timedelta(minutes=45)
+    provider.sync_fleet(
+        build_profiles([(vehicle_id, org_id, *AMSTERDAM)], default_center=AMSTERDAM),
+        now=start,
+    )
+
+    speeds = []
+    for step in range(200):
+        batch, _ = provider.tick(start + timedelta(seconds=5 * step))
+        speeds.append(batch[0].speed_kph)
+
+    assert max(speeds) > 20.0, "a replayed fleet must drive, not sit parked"
+
+
+def test_a_live_fleet_still_staggers_against_the_wall_clock() -> None:
+    """The default has to keep working: no `now` means real time."""
+    provider = SimulatedLocationProvider(tick_seconds=5.0, event_probability=0.0, seed=7)
+    org_id, vehicle_id = uuid.uuid4(), uuid.uuid4()
+    provider.sync_fleet(
+        build_profiles([(vehicle_id, org_id, *AMSTERDAM)], default_center=AMSTERDAM)
+    )
+
+    now = datetime.now(UTC)
+    speeds = [
+        provider.tick(now + timedelta(seconds=5 * step))[0][0].speed_kph
+        for step in range(200)
+    ]
+    assert max(speeds) > 20.0

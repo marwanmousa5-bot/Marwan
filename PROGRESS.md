@@ -480,9 +480,37 @@ default is unchanged, so nothing else shifts meaning.
 
 ---
 
+## Demo seed ✅
+
+`python -m app.seed_demo` builds a populated tenant through the real
+provisioning, device and activation flows - not by writing rows behind them -
+so a fresh stack is worth looking at in one command. Idempotent by default,
+`--force` rebuilds.
+
+Writing it surfaced three bugs, all of which would have hit a tester:
+
+1. **The feed could not be replayed from the past.** A newly spawned vehicle
+   staggered its first departure against the *wall clock*, so a backfill
+   driven from 45 minutes ago sat inside that dwell window on every tick and
+   the whole fleet stayed parked - silently, because the provider still
+   emitted a position for each stationary vehicle. `tick_once`'s own docstring
+   advertised this capability. `sync_fleet` now takes the clock the replay is
+   driven on.
+2. **Fuel rows written outside the fuel service carried no CO2**, so the
+   sustainability dashboard read a flat zero on a fleet with six weeks of
+   fuel. The seed now derives it the same way the service does.
+3. **`--force` doubled the fleet.** It relied on `ON DELETE CASCADE`, which
+   SQLite does not enforce unless asked, so the old tenant's rows survived.
+   The purge now walks the metadata in reverse dependency order, which behaves
+   the same on every backend and picks up tenant tables added later. Devices
+   are handled separately and deliberately: they are platform inventory, they
+   survive a customer, and their serial numbers stay taken.
+
+---
+
 ## Testing
 
-**181 backend tests, all passing**, with no external services (in-memory
+**183 backend tests, all passing**, with no external services (in-memory
 SQLite, a fake OSRM client, and the offline Claude path).
 
 | Suite | Tests | Covers |
@@ -492,7 +520,7 @@ SQLite, a fake OSRM client, and the offline Claude path).
 | `test_platform_admin.py` | 13 | provisioning, activation, suspension, impersonation |
 | `test_fleet_crud.py` | 10 | vehicle/driver lifecycles, audit diffs |
 | `test_devices.py` | 10 | device inventory, and that no customer role can touch it |
-| `test_simulation.py` | 12 | the feed, trips, persisted history |
+| `test_simulation.py` | 14 | the feed, trips, persisted history, replay |
 | `test_operations.py` | 22 | alerts, maintenance, fuel, compliance |
 | `test_tasks.py` | 16 | the task lifecycle and the driver API |
 | `test_analytics.py` | 25 | scoring, points, analytics, sustainability |

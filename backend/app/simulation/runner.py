@@ -56,7 +56,7 @@ class TrackingRunner:
 
     # -- fleet -------------------------------------------------------------
 
-    async def refresh_fleet(self) -> int:
+    async def refresh_fleet(self, *, now: datetime | None = None) -> int:
         """Re-read which vehicles have a live device, and reload config.
 
         Only vehicles with an ACTIVE device belonging to an ACTIVE
@@ -84,7 +84,8 @@ class TrackingRunner:
                 build_profiles(
                     [(r[0], r[1], r[2], r[3]) for r in live],
                     default_center=DEFAULT_CENTER,
-                )
+                ),
+                now=now,
             )
 
             vehicle_ids = [r[0] for r in live]

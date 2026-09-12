@@ -117,13 +117,23 @@ class SimulatedLocationProvider(LocationProvider):
 
     # -- fleet membership --------------------------------------------------
 
-    def sync_fleet(self, profiles: Iterable[VehicleProfile]) -> None:
+    def sync_fleet(
+        self, profiles: Iterable[VehicleProfile], *, now: datetime | None = None
+    ) -> None:
         """Reconcile the simulated fleet with the currently live vehicles.
 
         Called on every refresh so that a device assigned or unassigned in the
         Platform Admin Console takes effect without a restart.
+
+        ``now`` is the clock a newly spawned vehicle staggers its first
+        departure against. It must be the same clock ``tick`` is driven on:
+        when the feed is replayed at accelerated time from a point in the past,
+        staggering against the wall clock would leave every vehicle dwelling
+        until real time caught up - which is to say, parked for the whole
+        replay.
         """
         wanted = {p.vehicle_id: p for p in profiles}
+        moment = now or datetime.now(UTC)
 
         for vehicle_id in list(self._states):
             if vehicle_id not in wanted:
@@ -131,11 +141,11 @@ class SimulatedLocationProvider(LocationProvider):
 
         for vehicle_id, profile in wanted.items():
             if vehicle_id not in self._states:
-                self._states[vehicle_id] = self._spawn(profile)
+                self._states[vehicle_id] = self._spawn(profile, moment)
             else:
                 self._states[vehicle_id].profile = profile
 
-    def _spawn(self, profile: VehicleProfile) -> VehicleState:
+    def _spawn(self, profile: VehicleProfile, now: datetime) -> VehicleState:
         rng = random.Random(profile.seed or self._master_rng.randrange(1 << 30))
         state = VehicleState(
             profile=profile,
@@ -144,8 +154,7 @@ class SimulatedLocationProvider(LocationProvider):
             rng=rng,
             # Stagger departures so a fleet does not move in lockstep.
             phase=Phase.DWELLING,
-            dwell_until=datetime.now(UTC)
-            + timedelta(seconds=rng.uniform(0, 45)),
+            dwell_until=now + timedelta(seconds=rng.uniform(0, 45)),
         )
         self._pick_target(state)
         return state

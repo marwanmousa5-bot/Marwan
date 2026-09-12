@@ -62,6 +62,25 @@ the platform super admin.
 | API docs (Swagger) | http://localhost:8000/docs |
 | OpenAPI schema | http://localhost:8000/api/v1/openapi.json |
 
+### Demo data (evaluation and testing)
+
+A fresh stack starts empty, which is correct for production and unhelpful for
+a first look. One command builds a populated tenant:
+
+```bash
+docker compose run --rm api python -m app.seed_demo
+```
+
+That provisions **Northwind Transport** through the real provisioning flow -
+7 vehicles (6 fitted with GPS, one deliberately left **Not Tracked**), 4
+drivers, geofences and POIs, six weeks of fuel and service history, and 45
+minutes of recorded movement, so trips, driver events, alerts and every
+analytics screen have something in them before you sign in.
+
+It prints the admin sign-in, generating a password unless you set
+`DEMO_ADMIN_PASSWORD`. It refuses to run twice by default; `--force` tears the
+demo tenant down and rebuilds it.
+
 ### Seeing live data
 
 Vehicles only produce GPS data once FleetBeat fits them a device. After
