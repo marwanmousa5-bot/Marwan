@@ -226,3 +226,73 @@ def test_no_route_is_shadowed_by_an_earlier_one() -> None:
         "These routes are unreachable - an earlier parameterised route matches "
         f"them first: {shadowed}"
     )
+
+
+@pytest.mark.asyncio
+async def test_a_forced_password_change_blocks_the_rest_of_the_api(
+    client: AsyncClient, db: AsyncSession
+) -> None:
+    """Section 4a: the seeded password is for first use only.
+
+    Enforcing this in the UI alone would leave the temporary password working
+    against the API for as long as nobody changed it.
+    """
+    org = await make_organization(db, "Acme Logistics")
+    user = await make_user(
+        db, email="fresh@acme.example.com", role=UserRole.ORG_ADMIN, organization=org
+    )
+    user.must_change_password = True
+    await db.commit()
+
+    token = await login(client, "fresh@acme.example.com")
+
+    blocked = await client.get("/api/v1/vehicles", headers=auth(token))
+    assert blocked.status_code == 403
+    assert blocked.json()["code"] == "password_change_required"
+
+    # Only what is needed to complete the change still works.
+    assert (await client.get("/api/v1/auth/me", headers=auth(token))).status_code == 200
+
+    changed = await client.post(
+        "/api/v1/auth/change-password",
+        headers=auth(token),
+        json={
+            "current_password": TEST_PASSWORD,
+            "new_password": "ChosenByTheUser!2026",
+        },
+    )
+    assert changed.status_code == 200
+
+    # Changing the password revokes existing sessions, so sign in again.
+    fresh_token = await login(
+        client, "fresh@acme.example.com", password="ChosenByTheUser!2026"
+    )
+    assert (
+        await client.get("/api/v1/vehicles", headers=auth(fresh_token))
+    ).status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_impersonation_is_not_blocked_by_the_customers_password_flag(
+    client: AsyncClient, db: AsyncSession
+) -> None:
+    """The flag is the customer's to clear - staff cannot set their password."""
+    org = await make_organization(db, "Acme Logistics")
+    admin = await make_user(
+        db, email="admin@acme.example.com", role=UserRole.ORG_ADMIN, organization=org
+    )
+    admin.must_change_password = True
+    await make_user(db, email="root@fleetbeat.example.com", role=UserRole.SUPER_ADMIN)
+    await db.commit()
+
+    staff_token = await login(client, "root@fleetbeat.example.com")
+    impersonation = await client.post(
+        f"/api/v1/platform-admin/organizations/{org.id}/impersonate",
+        headers=auth(staff_token),
+    )
+    assert impersonation.status_code == 200
+
+    as_customer = impersonation.json()["tokens"]["access_token"]
+    assert (
+        await client.get("/api/v1/vehicles", headers=auth(as_customer))
+    ).status_code == 200

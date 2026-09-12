@@ -123,6 +123,8 @@ export const strings = {
     lastSeen: "Last signal",
     noDevice: "No device fitted. FleetBeat provisions and links GPS hardware.",
     acknowledge: "Acknowledge",
+    acknowledged: "Acknowledged",
+    liftClosure: "Lift",
     resolve: "Resolve",
   },
   tasks: {
@@ -375,6 +377,24 @@ export const strings = {
     teamEmpty: "No one else has been invited yet.",
     noDeviceRole:
       "GPS devices are fitted and removed by FleetBeat staff, not from here.",
+  },
+  changePassword: {
+    title: "Change your password",
+    forcedTitle: "Set your own password",
+    subtitle: "You will be signed out of every device afterwards.",
+    forcedSubtitle:
+      "The password you signed in with was issued for first use only. Choose your own before you carry on - nothing else will work until you do.",
+    current: "Current password",
+    new: "New password",
+    confirm: "Confirm new password",
+    submit: "Change password",
+    submitting: "Changing…",
+    mismatch: "Those two passwords do not match.",
+    tooShort: "Use at least 12 characters.",
+    sameAsCurrent: "Choose a password you have not used here before.",
+    success: "Password changed. Sign in again with the new one.",
+    failed: "We could not change your password.",
+    link: "Change password",
   },
   common: {
     loading: "Loading…",

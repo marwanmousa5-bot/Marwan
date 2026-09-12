@@ -696,3 +696,48 @@ async def test_sweep_resolves_only_aged_momentary_alerts(
     assert recent.status == "active", "a recent event is left alone"
     assert old.status == "resolved", "an aged momentary event is swept"
     assert standing.status == "active", "a standing condition is never swept"
+
+
+@pytest.mark.asyncio
+async def test_acknowledging_keeps_an_alert_in_the_feed(
+    client: AsyncClient, db: AsyncSession, org_fixture
+) -> None:
+    """Acknowledged means claimed, not finished.
+
+    Regression: the list endpoint filtered to ACTIVE only, so an acknowledged
+    alert vanished from the live feed on the next refresh and acknowledging
+    was indistinguishable from resolving.
+    """
+    alert = await alert_service.raise_alert(
+        db,
+        organization_id=org_fixture["org"].id,
+        rule_type=AlertRuleType.SPEEDING,
+        title="Van 01 at 128 km/h",
+        message="Over the 110 km/h limit.",
+    )
+    await db.commit()
+
+    await client.post(
+        f"/api/v1/alerts/{alert.id}/acknowledge", headers=auth(org_fixture["admin"])
+    )
+
+    feed = await client.get(
+        "/api/v1/alerts?status=active&status=acknowledged",
+        headers=auth(org_fixture["admin"]),
+    )
+    rows = {row["id"]: row["status"] for row in feed.json()["items"]}
+    assert rows.get(str(alert.id)) == "acknowledged"
+
+    # The default is still active-only, so nothing else changes meaning.
+    default = await client.get("/api/v1/alerts", headers=auth(org_fixture["admin"]))
+    assert str(alert.id) not in {row["id"] for row in default.json()["items"]}
+
+    # Resolving does remove it from the feed the dashboard asks for.
+    await client.post(
+        f"/api/v1/alerts/{alert.id}/resolve", headers=auth(org_fixture["admin"])
+    )
+    after = await client.get(
+        "/api/v1/alerts?status=active&status=acknowledged",
+        headers=auth(org_fixture["admin"]),
+    )
+    assert str(alert.id) not in {row["id"] for row in after.json()["items"]}

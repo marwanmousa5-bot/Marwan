@@ -28,7 +28,11 @@ function LoginForm() {
     setError(null);
     try {
       const session = await signIn(email, password);
-      router.replace(homePathForRole(session.user.role));
+      router.replace(
+        session.user.must_change_password
+          ? "/change-password"
+          : homePathForRole(session.user.role),
+      );
     } catch (err) {
       setError(
         err instanceof ApiError ? err.message : strings.login.genericError,

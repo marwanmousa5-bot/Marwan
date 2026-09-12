@@ -445,27 +445,62 @@ proxy steps around. The model parser falls closed too — a missing
 
 ---
 
+## Three gaps closed after a sweep ✅
+
+After the Settings and standings screens both turned out to be promises the
+product had made and not kept, the same question was put to the whole API:
+which endpoints does no client ever call? Most answers were noise, three were
+real.
+
+**A forced password change was not enforced anywhere.** The super-admin seed
+sets `must_change_password`, Section 4a requires the password be changed on
+first login, `POST /auth/change-password` existed — and nothing read the flag.
+The web app parsed it into a type and ignored it. A seeded account could use
+its temporary password against every endpoint, indefinitely.
+
+The fix is server-first, because a UI-only gate would leave the temporary
+password working against the API: `get_current_principal` now refuses every
+path except the four needed to complete the change (`change-password`, `me`,
+`logout`, `refresh`) with a distinct `password_change_required` code. An
+impersonating `super_admin` is exempt — the flag is the customer's to clear,
+and staff cannot choose their password. The web app adds `/change-password`,
+routes there from login and from the role guard, and redirects any tab that
+meets the refusal code mid-session.
+
+**A road closure could be created but never lifted.** Roadworks end; a closure
+nobody can remove keeps proposing reroutes forever. The live map now lists
+active closures with a Lift action beside each.
+
+**Acknowledging an alert looked exactly like resolving it.** The action
+existed, the string existed, and `GET /alerts` filtered to active only — so an
+acknowledged alert vanished from the feed on the next refresh. The filter now
+takes several statuses (`?status=active&status=acknowledged`), the live feed
+asks for both, and an acknowledged alert stays on screen wearing a badge. The
+default is unchanged, so nothing else shifts meaning.
+
+---
+
 ## Testing
 
-**178 backend tests, all passing**, with no external services (in-memory
+**181 backend tests, all passing**, with no external services (in-memory
 SQLite, a fake OSRM client, and the offline Claude path).
 
 | Suite | Tests | Covers |
 |---|---|---|
 | `test_tenant_isolation.py` | 13 | the mandatory Section 7 proof |
-| `test_auth.py` | 12 | login, lockout, refresh rotation, RBAC, no registration |
+| `test_auth.py` | 14 | login, lockout, refresh rotation, RBAC, no registration, forced password change |
 | `test_platform_admin.py` | 13 | provisioning, activation, suspension, impersonation |
 | `test_fleet_crud.py` | 10 | vehicle/driver lifecycles, audit diffs |
 | `test_devices.py` | 10 | device inventory, and that no customer role can touch it |
 | `test_simulation.py` | 12 | the feed, trips, persisted history |
-| `test_operations.py` | 21 | alerts, maintenance, fuel, compliance |
+| `test_operations.py` | 22 | alerts, maintenance, fuel, compliance |
 | `test_tasks.py` | 16 | the task lifecycle and the driver API |
 | `test_analytics.py` | 25 | scoring, points, analytics, sustainability |
 | `test_ai.py` | 24 | the assistant, copilots, reports, and the confirmation gate |
 | `test_phase6.py` | 22 | rerouting, audit views, sign-in activity |
 
 `ruff check .` is clean; the web app typechecks, lints and builds clean across
-23 routes.
+24 routes.
 
 **Browser verification.** Phases 2, 3, 4, 5 and 6 were each exercised in
 Chromium against a live API with the simulator running — not just unit-tested.

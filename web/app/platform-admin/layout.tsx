@@ -59,6 +59,12 @@ export default function PlatformAdminLayout({
             <span className="hidden text-xs text-ink-400 md:inline">
               {session.user.email}
             </span>
+            <Link
+              href="/change-password"
+              className="text-xs text-ink-500 hover:text-ink-700"
+            >
+              {strings.changePassword.link}
+            </Link>
             <button
               onClick={handleSignOut}
               className="fb-button rounded-lg border border-ink-200 !py-1.5 text-ink-700 hover:bg-ink-50"

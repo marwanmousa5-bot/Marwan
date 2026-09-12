@@ -182,14 +182,21 @@ async def list_alerts(
     db: AsyncSession,
     scope: TenantScope,
     *,
-    status: AlertStatus | None = AlertStatus.ACTIVE,
+    status: AlertStatus | list[AlertStatus] | None = AlertStatus.ACTIVE,
     vehicle_id: uuid.UUID | None = None,
     limit: int = 50,
     offset: int = 0,
 ) -> tuple[list[Alert], int]:
+    """``status`` takes one value or several.
+
+    Several matters for the live feed: an acknowledged alert is *claimed*, not
+    finished, so it has to stay on screen next to the unclaimed ones. Filtering
+    to ACTIVE alone made acknowledging look exactly like resolving.
+    """
     stmt = scope.select(Alert)
     if status is not None:
-        stmt = stmt.where(Alert.status == status)
+        statuses = status if isinstance(status, list) else [status]
+        stmt = stmt.where(Alert.status.in_(statuses))
     if vehicle_id is not None:
         stmt = stmt.where(Alert.vehicle_id == vehicle_id)
 

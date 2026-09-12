@@ -31,7 +31,14 @@ router = APIRouter(tags=["alerts"])
 
 @router.get("/alerts", response_model=Page[AlertOut], summary="Alerts feed")
 async def list_alerts(
-    status_filter: AlertStatus | None = Query(default=AlertStatus.ACTIVE, alias="status"),
+    status_filter: list[AlertStatus] | None = Query(
+        default=None,
+        alias="status",
+        description=(
+            "Repeat to match several, e.g. ?status=active&status=acknowledged. "
+            "Defaults to active alerts only."
+        ),
+    ),
     vehicle_id: uuid.UUID | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
@@ -40,7 +47,12 @@ async def list_alerts(
     db: AsyncSession = Depends(get_db),
 ) -> Page[AlertOut]:
     items, total = await alert_service.list_alerts(
-        db, scope, status=status_filter, vehicle_id=vehicle_id, limit=limit, offset=offset
+        db,
+        scope,
+        status=status_filter or [AlertStatus.ACTIVE],
+        vehicle_id=vehicle_id,
+        limit=limit,
+        offset=offset,
     )
     return Page[AlertOut](
         items=[AlertOut.model_validate(a) for a in items],

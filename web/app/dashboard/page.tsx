@@ -104,7 +104,12 @@ export default function LiveTrackingPage() {
   }, []);
 
   const loadAlerts = useCallback(async () => {
-    const page = await api.get<Page<Alert>>("/alerts?limit=30");
+    // Acknowledged alerts are claimed, not finished, so the feed keeps them
+    // alongside the unclaimed ones - otherwise acknowledging would look
+    // exactly like resolving.
+    const page = await api.get<Page<Alert>>(
+      "/alerts?status=active&status=acknowledged&limit=30",
+    );
     setAlerts(page.items);
   }, []);
 
@@ -253,6 +258,32 @@ export default function LiveTrackingPage() {
       await loadSnapshot();
     } catch {
       /* the feed will correct itself on the next refresh */
+    }
+  }
+
+  /** Seen, but still open - the alert stays in the feed, visibly claimed. */
+  async function acknowledgeAlert(alertId: string) {
+    try {
+      const updated = await api.post<Alert>(`/alerts/${alertId}/acknowledge`);
+      setAlerts((current) =>
+        current.map((a) => (a.id === updated.id ? updated : a)),
+      );
+    } catch {
+      /* the feed will correct itself on the next refresh */
+    }
+  }
+
+  /** Roadworks end. A closure nobody can lift keeps proposing reroutes. */
+  async function liftClosure(closureId: string) {
+    try {
+      await api.patch<RoadClosure>(`/road-closures/${closureId}`, {
+        is_active: false,
+      });
+      setRoadClosures((current) => current.filter((c) => c.id !== closureId));
+    } catch (err) {
+      setError(
+        err instanceof ApiError ? err.message : "We could not lift that closure.",
+      );
     }
   }
 
@@ -436,6 +467,32 @@ export default function LiveTrackingPage() {
                 </button>
               </div>
             )}
+
+            {roadClosures.length > 0 && (
+              <div className="w-52 rounded-lg border border-ink-600 bg-ink-800/95 p-3 shadow-lg backdrop-blur">
+                <p className="fb-label mb-2">{strings.live.layerClosures}</p>
+                <ul className="space-y-1.5">
+                  {roadClosures.map((closure) => (
+                    <li
+                      key={closure.id}
+                      className="flex items-start justify-between gap-2"
+                    >
+                      <span className="min-w-0 flex-1 truncate text-[11px] text-ink-200">
+                        {closure.label}
+                      </span>
+                      {canDraw && (
+                        <button
+                          onClick={() => liftClosure(closure.id)}
+                          className="shrink-0 text-[10px] text-coral hover:text-coral/80"
+                        >
+                          {strings.live.liftClosure}
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
 
           <div className="absolute right-3 top-3 flex items-center gap-2 rounded-full border border-ink-600 bg-ink-800/95 px-3 py-1.5 text-[11px] backdrop-blur">
@@ -586,7 +643,14 @@ export default function LiveTrackingPage() {
                         }`}
                       />
                       <div className="min-w-0 flex-1">
-                        <p className="text-xs font-medium text-ink-50">{alert.title}</p>
+                        <p className="text-xs font-medium text-ink-50">
+                          {alert.title}
+                          {alert.status === "acknowledged" && (
+                            <span className="fb-badge ml-2 bg-ink-700 text-ink-300">
+                              {strings.live.acknowledged}
+                            </span>
+                          )}
+                        </p>
                         <p className="mt-0.5 text-[11px] leading-relaxed text-ink-400">
                           {alert.message}
                         </p>
@@ -600,6 +664,14 @@ export default function LiveTrackingPage() {
                               className="text-[10px] text-electric-300 hover:text-electric-200"
                             >
                               Show on map
+                            </button>
+                          )}
+                          {alert.status !== "acknowledged" && (
+                            <button
+                              onClick={() => acknowledgeAlert(alert.id)}
+                              className="text-[10px] text-ink-400 hover:text-ink-200"
+                            >
+                              {strings.live.acknowledge}
                             </button>
                           )}
                           <button

@@ -127,7 +127,19 @@ export async function apiFetch<T>(
     }
   }
 
-  if (!response.ok) throw await parseError(response);
+  if (!response.ok) {
+    const failure = await parseError(response);
+    // A tab left open across a password reset would otherwise sit there
+    // rendering 403s. Send it where the only useful action is (Section 4a).
+    if (
+      failure.code === "password_change_required" &&
+      typeof window !== "undefined" &&
+      window.location.pathname !== "/change-password"
+    ) {
+      window.location.assign("/change-password");
+    }
+    throw failure;
+  }
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
 }

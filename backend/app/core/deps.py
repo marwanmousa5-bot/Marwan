@@ -15,7 +15,11 @@ from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.errors import AuthenticationError, PermissionDeniedError
+from app.core.errors import (
+    AuthenticationError,
+    PasswordChangeRequiredError,
+    PermissionDeniedError,
+)
 from app.core.security import decode_token
 from app.core.tenancy import TenantScope
 from app.db.session import get_db
@@ -24,6 +28,18 @@ from app.models.organization import Organization
 from app.models.user import User
 
 bearer_scheme = HTTPBearer(auto_error=False)
+
+#: The only paths an account still carrying a forced password change may use.
+#: Everything needed to complete the change, and nothing else - a temporary
+#: password must not be a working credential for the rest of the API.
+PASSWORD_CHANGE_EXEMPT_PATHS = frozenset(
+    {
+        "/api/v1/auth/change-password",
+        "/api/v1/auth/me",
+        "/api/v1/auth/logout",
+        "/api/v1/auth/refresh",
+    }
+)
 
 
 @dataclass(slots=True)
@@ -88,6 +104,19 @@ async def get_current_principal(
         organization = await db.get(Organization, token_org_id)
         if organization is None or organization.status != OrganizationStatus.ACTIVE:
             raise AuthenticationError("Organization is suspended or missing")
+
+    # Section 4a: a seeded or reset account changes its password before it can
+    # do anything else. An impersonating super_admin is exempt - the flag
+    # belongs to the customer's account, and staff cannot set their password.
+    if (
+        user.must_change_password
+        and payload.get("imp") is None
+        and request.url.path not in PASSWORD_CHANGE_EXEMPT_PATHS
+    ):
+        raise PasswordChangeRequiredError(
+            "Set a new password before continuing - the one you signed in with "
+            "was issued for first use only."
+        )
 
     impersonator = payload.get("imp")
     principal = Principal(

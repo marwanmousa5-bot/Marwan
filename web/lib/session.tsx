@@ -124,6 +124,13 @@ export function useRequireRole(allowed: UserRole[]) {
       router.replace("/login");
       return;
     }
+    // A forced password change outranks the role check: the API refuses every
+    // console endpoint until it is cleared, so landing anywhere else would
+    // just render a screen full of 403s (Section 4a).
+    if (session.user.must_change_password) {
+      router.replace("/change-password");
+      return;
+    }
     if (!allowed.includes(session.user.role)) {
       router.replace(homePathForRole(session.user.role));
     }

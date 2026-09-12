@@ -41,6 +41,18 @@ class PermissionDeniedError(FleetBeatError):
     code = "permission_denied"
 
 
+class PasswordChangeRequiredError(FleetBeatError):
+    """The account must set a new password before it can do anything else.
+
+    Section 4a requires a seeded or reset account to change its password on
+    first login. Enforcing that only in the UI would leave the temporary
+    password valid against the API forever.
+    """
+
+    status_code = 403
+    code = "password_change_required"
+
+
 class RateLimitedError(FleetBeatError):
     status_code = 429
     code = "rate_limited"

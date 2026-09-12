@@ -75,6 +75,12 @@ export default function DashboardLayout({
           <span className="hidden text-xs text-ink-400 md:inline">
             {strings.common.signedInAs} {session.user.email}
           </span>
+          <Link
+            href="/change-password"
+            className="text-xs text-ink-400 hover:text-ink-200"
+          >
+            {strings.changePassword.link}
+          </Link>
           <button onClick={handleSignOut} className="fb-button-ghost !py-1.5">
             {strings.nav.signOut}
           </button>
