@@ -98,4 +98,47 @@ void main() {
       expect(item.toJson(), containsPair('note', 'Near-side worn'));
     });
   });
+
+  group('Standings', () {
+    test('parses the leaderboard payload', () {
+      final standings = Standings.fromJson({
+        'period': '2026-09',
+        'visible_to_drivers': true,
+        'rows': [
+          {
+            'rank': 1,
+            'driver_id': 'driver-1',
+            'driver_name': 'Dee Driver',
+            'points_balance': 118,
+            'safety_score': 93.4,
+            'fatigue_risk_level': 'low',
+            'badges': ['clean_streak'],
+          },
+        ],
+        'badge_catalogue': [
+          {
+            'code': 'clean_streak',
+            'name': 'Clean streak',
+            'description': 'A full week with no violations.',
+          },
+        ],
+      });
+
+      expect(standings.period, '2026-09');
+      expect(standings.visibleToDrivers, isTrue);
+      expect(standings.rows.single.driverName, 'Dee Driver');
+      expect(standings.rows.single.badges, ['clean_streak']);
+      expect(standings.badgeCatalogue.single.name, 'Clean streak');
+    });
+
+    test('defaults to private when the flag is absent', () {
+      // The screen shows peers only when the API says so, so a missing or
+      // unreadable flag must fall closed rather than open.
+      final standings = Standings.fromJson({'period': '2026-09', 'rows': []});
+
+      expect(standings.visibleToDrivers, isFalse);
+      expect(standings.rows, isEmpty);
+      expect(standings.badgeCatalogue, isEmpty);
+    });
+  });
 }

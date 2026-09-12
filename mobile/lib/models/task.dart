@@ -174,3 +174,81 @@ List<InspectionItem> defaultChecklist() => [
 
 DateTime? _parseDate(Object? raw) =>
     raw is String ? DateTime.parse(raw).toLocal() : null;
+
+
+/// One row of the monthly standings (Section 4g).
+///
+/// When the driver's Organization has peer visibility switched off the API
+/// returns only their own row - the app does not filter this itself, because
+/// a client-side filter is not a privacy control.
+class StandingRow {
+  const StandingRow({
+    required this.rank,
+    required this.driverId,
+    required this.driverName,
+    required this.pointsBalance,
+    required this.safetyScore,
+    required this.badges,
+  });
+
+  factory StandingRow.fromJson(Map<String, dynamic> json) => StandingRow(
+        rank: (json['rank'] as num?)?.toInt() ?? 0,
+        driverId: json['driver_id'] as String,
+        driverName: json['driver_name'] as String,
+        pointsBalance: (json['points_balance'] as num?)?.toInt() ?? 0,
+        safetyScore: (json['safety_score'] as num?)?.toDouble() ?? 0,
+        badges: ((json['badges'] as List<dynamic>?) ?? const [])
+            .map((e) => e as String)
+            .toList(),
+      );
+
+  final int rank;
+  final String driverId;
+  final String driverName;
+  final int pointsBalance;
+  final double safetyScore;
+  final List<String> badges;
+}
+
+class BadgeDefinition {
+  const BadgeDefinition({
+    required this.code,
+    required this.name,
+    required this.description,
+  });
+
+  factory BadgeDefinition.fromJson(Map<String, dynamic> json) => BadgeDefinition(
+        code: json['code'] as String,
+        name: json['name'] as String,
+        description: json['description'] as String,
+      );
+
+  final String code;
+  final String name;
+  final String description;
+}
+
+class Standings {
+  const Standings({
+    required this.period,
+    required this.rows,
+    required this.badgeCatalogue,
+    required this.visibleToDrivers,
+  });
+
+  factory Standings.fromJson(Map<String, dynamic> json) => Standings(
+        period: json['period'] as String? ?? '',
+        rows: ((json['rows'] as List<dynamic>?) ?? const [])
+            .map((e) => StandingRow.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        badgeCatalogue: ((json['badge_catalogue'] as List<dynamic>?) ?? const [])
+            .map((e) => BadgeDefinition.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        visibleToDrivers: json['visible_to_drivers'] as bool? ?? false,
+      );
+
+  final String period;
+  final List<StandingRow> rows;
+  final List<BadgeDefinition> badgeCatalogue;
+  final bool visibleToDrivers;
+}

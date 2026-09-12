@@ -424,6 +424,27 @@ from it.
 
 ---
 
+## Driver standings in the mobile app ✅
+
+The same dangling-promise problem as Settings, one layer down. The Safety
+screen told an admin "drivers can see this leaderboard in the mobile app", the
+API already served a driver-facing leaderboard, the driver app already parsed
+`leaderboard_visible` from its home payload — and then never used it. There
+was no standings screen.
+
+`lib/features/standings/` adds one, reached by tapping the score/points block
+on the driver's home screen. It shows the driver's own row always, the full
+leaderboard when their fleet has opted in, their badges, and the badge
+catalogue so the scoring is legible rather than mysterious.
+
+**The gate stays server-side.** When peer visibility is off the API returns
+only that driver's row; the app renders whatever it is handed and explains why
+the list is short. A client-side filter would be a privacy control that a
+proxy steps around. The model parser falls closed too — a missing
+`visible_to_drivers` flag reads as private, with a test for exactly that.
+
+---
+
 ## Testing
 
 **178 backend tests, all passing**, with no external services (in-memory
@@ -465,10 +486,21 @@ until they failed against the bug and passed against the fix.
 ## Known gaps in verification
 
 1. **The Flutter app has not been compiled.** No Flutter SDK is installed in
-   this environment. The Dart code is written against Flutter 3.27+ and was
-   checked statically (import resolution, delimiter balance), but it has not
-   been executed. `android/` and `ios/` folders are not committed — run
-   `flutter create .` in `mobile/` once before the first build.
+   this environment. The Dart code is written against Flutter 3.27+ but has
+   not been executed, and its four widget/model tests have not been run.
+   `android/` and `ios/` folders are not committed — run `flutter create .` in
+   `mobile/` once before the first build.
+
+   Two checks in `mobile/tool/` stand in for what a compiler would catch
+   first, and both were validated against a deliberately broken copy of the
+   code rather than trusted because they printed OK:
+   - `static_check.py` — unbalanced delimiters, imports resolving to nothing,
+     `Strings.*` with no constant, a type used without its import.
+   - `route_check.py` — every API path the app calls, matched against the
+     OpenAPI schema the API actually serves, expanding an interpolated path to
+     the concrete routes it can produce. This found a real bug: the standings
+     screen called `/analytics/leaderboard` when the served route is
+     `/leaderboard`.
 2. **No Docker daemon here**, so `docker compose up` has not been run
    end-to-end. The stack was exercised by running the API, worker and web app
    directly. The baseline migration was validated by rendering its full

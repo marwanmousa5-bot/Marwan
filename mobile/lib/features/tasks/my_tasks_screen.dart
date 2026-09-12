@@ -8,6 +8,7 @@ import '../../core/strings.dart';
 import '../../core/theme.dart';
 import '../../models/task.dart';
 import '../incidents/report_incident_screen.dart';
+import '../standings/standings_screen.dart';
 import '../inspection/inspection_screen.dart';
 import 'task_detail_screen.dart';
 
@@ -121,7 +122,17 @@ class _MyTasksScreenState extends State<MyTasksScreen> {
                 : ListView(
                     padding: const EdgeInsets.all(16),
                     children: [
-                      _DriverCard(home: home!),
+                      _DriverCard(
+                        home: home!,
+                        onOpenStandings: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => StandingsScreen(
+                              api: widget.api,
+                              driverId: home.driverId,
+                            ),
+                          ),
+                        ),
+                      ),
                       if (home.inspectionDue && home.vehicleId != null) ...[
                         const SizedBox(height: 12),
                         _InspectionPrompt(
@@ -156,9 +167,10 @@ class _MyTasksScreenState extends State<MyTasksScreen> {
 }
 
 class _DriverCard extends StatelessWidget {
-  const _DriverCard({required this.home});
+  const _DriverCard({required this.home, required this.onOpenStandings});
 
   final DriverHome home;
+  final VoidCallback onOpenStandings;
 
   @override
   Widget build(BuildContext context) {
@@ -191,18 +203,47 @@ class _DriverCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          Row(
-            children: [
-              _Metric(
-                label: Strings.safetyScore,
-                value: home.safetyScore.round().toString(),
+          // The whole block is the tap target: a driver looking at their
+          // score is the driver who wants the detail behind it.
+          InkWell(
+            onTap: onOpenStandings,
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  _Metric(
+                    label: Strings.safetyScore,
+                    value: home.safetyScore.round().toString(),
+                  ),
+                  const SizedBox(width: 24),
+                  _Metric(
+                    label: Strings.points,
+                    value: home.pointsBalance.toString(),
+                  ),
+                  const Spacer(),
+                  Row(
+                    children: [
+                      Text(
+                        home.leaderboardVisible
+                            ? Strings.standingsTitle
+                            : Strings.myStanding,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: FleetBeatColors.electricBlue
+                              .withValues(alpha: 0.9),
+                        ),
+                      ),
+                      const Icon(
+                        Icons.chevron_right,
+                        size: 18,
+                        color: FleetBeatColors.electricBlue,
+                      ),
+                    ],
+                  ),
+                ],
               ),
-              const SizedBox(width: 24),
-              _Metric(
-                label: Strings.points,
-                value: home.pointsBalance.toString(),
-              ),
-            ],
+            ),
           ),
         ],
       ),

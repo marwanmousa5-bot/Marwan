@@ -32,6 +32,22 @@ class Strings {
   static const safetyScore = 'Safety score';
   static const points = 'Points';
 
+  // Standings
+  static const myStanding = 'My standing';
+  static const standingsTitle = 'Standings';
+  static const standingsPrivate =
+      'Your fleet keeps standings private, so you can see your own score and '
+      'points but not anyone else\'s.';
+  static const standingsRank = 'Rank';
+  static const yourRow = 'You';
+  static const badges = 'Badges';
+  static const noBadgesYet = 'No badges yet this month.';
+  static const badgeCatalogue = 'How to earn badges';
+  static const provisionalScore =
+      'Provisional - a score settles once you have driven enough distance '
+      'this month.';
+  static const standingsEmpty = 'No standings for this month yet.';
+
   // Inspection
   static const preTripInspection = 'Pre-trip inspection';
   static const inspectionDue = 'Pre-trip inspection due';
