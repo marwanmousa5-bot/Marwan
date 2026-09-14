@@ -32,3 +32,7 @@ mobile/.packages
 # runtime
 *.log
 /tmp/
+
+# web-demo build output (rebuild with `node web-demo/build.mjs`)
+web-demo/public/app.js
+web-demo/public/app.js.map
