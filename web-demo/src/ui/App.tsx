@@ -24,6 +24,10 @@ export function App({ store, sim, base }: { store: Store; sim: Simulation; base:
   const [theme, setThemeState] = useState<'light' | 'dark'>(() => {
     const stored = safeGet('fb-theme');
     if (stored === 'light' || stored === 'dark') return stored;
+    // A host may already have stamped its own theme on the root element; respect it
+    // before falling back to the operating system preference.
+    const stamped = document.documentElement.getAttribute('data-theme');
+    if (stamped === 'light' || stamped === 'dark') return stamped;
     return window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
   });
   const focusRef = useRef<Focus | undefined>(undefined);
